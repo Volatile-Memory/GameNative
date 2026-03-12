@@ -135,6 +135,18 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- DocumentsProvider: exposes game storage (saves, game files) to the Android Files app -->
+        <provider
+            android:name=".provider.GameStorageProvider"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <!-- FileProvider for secure file sharing (for APK installation) -->
         <provider
             android:name="androidx.core.content.FileProvider"

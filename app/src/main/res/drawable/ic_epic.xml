@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Epic Games icon (simplified "E" mark) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M4.5,2h15C20.328,2 21,2.672 21,3.5v17C21,21.328 20.328,22 19.5,22h-15C3.672,22 3,21.328 3,20.5V3.5C3,2.672 3.672,2 4.5,2zM7,7v10h2v-3.5h6v-2H9V9h8V7H7z" />
+</vector>

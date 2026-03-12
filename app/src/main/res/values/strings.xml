@@ -1231,4 +1231,10 @@
     <string name="manifest_content_untrusted">Content is not trusted and was not installed.</string>
     <string name="manifest_type_mismatch">Downloaded content does not match expected type.</string>
     <string name="manifest_glibc_not_supported">GLIBC builds are not supported.</string>
+
+    <!-- GameStorageProvider strings -->
+    <string name="provider_root_summary">GameNative storage</string>
+    <string name="provider_wine_prefix">Wine Prefix</string>
+    <string name="provider_user_profile">User Profile</string>
+    <string name="provider_game_files">Game Files</string>
 </resources>
