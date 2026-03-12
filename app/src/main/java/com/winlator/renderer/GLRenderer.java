@@ -5,6 +5,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.os.Handler;
+import android.os.Looper;
 
 // import com.winlator.R;
 // import com.winlator.XrActivity;
@@ -53,6 +55,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private int surfaceWidth;
     private int surfaceHeight;
     private boolean sceneInitialized = false;
+
+    /** Called (debounced) when the GL surface settles at a new size after an Android resize. */
+    public interface OnSurfaceSizeChangedListener {
+        void onSurfaceSizeChanged(int width, int height);
+    }
+    private OnSurfaceSizeChangedListener onSurfaceSizeChangedListener;
+    private final Handler resizeHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingResizeRunnable;
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
@@ -112,6 +122,24 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         surfaceHeight = height;
         viewTransformation.update(width, height, xServer.screenInfo.width, xServer.screenInfo.height);
         viewportNeedsUpdate = true;
+
+        // Debounce rapid size changes (split-screen drag). After 150 ms of no further
+        // changes, notify the listener so it can snap to a standard resolution and
+        // update the X server's logical screen size.
+        if (onSurfaceSizeChangedListener != null) {
+            final int w = width;
+            final int h = height;
+            if (pendingResizeRunnable != null) resizeHandler.removeCallbacks(pendingResizeRunnable);
+            pendingResizeRunnable = () -> {
+                pendingResizeRunnable = null;
+                onSurfaceSizeChangedListener.onSurfaceSizeChanged(w, h);
+            };
+            resizeHandler.postDelayed(pendingResizeRunnable, 150);
+        }
+    }
+
+    public void setOnSurfaceSizeChangedListener(OnSurfaceSizeChangedListener listener) {
+        this.onSurfaceSizeChangedListener = listener;
     }
 
     @Override

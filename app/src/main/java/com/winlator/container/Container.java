@@ -138,6 +138,11 @@ public class Container {
     private boolean useDRI3 = true;
     // Steam client type for selecting appropriate Box64 RC config: normal, light, ultralight
     private String steamType = DefaultVersion.STEAM_TYPE;
+    // How to respond when the Android container is resized at runtime
+    public static final String RESOLUTION_CHANGE_MODE_PROMPT    = "prompt";
+    public static final String RESOLUTION_CHANGE_MODE_SNAP      = "snap";
+    public static final String RESOLUTION_CHANGE_MODE_ARBITRARY = "arbitrary";
+    private String resolutionChangeMode = RESOLUTION_CHANGE_MODE_PROMPT;
 
     private boolean gstreamerWorkaround = false;
 
@@ -178,6 +183,22 @@ public class Container {
                 break;
             default:
                 this.steamType = STEAM_TYPE_NORMAL;
+                break;
+        }
+    }
+
+    public String getResolutionChangeMode() {
+        return resolutionChangeMode;
+    }
+
+    public void setResolutionChangeMode(String mode) {
+        switch (mode) {
+            case RESOLUTION_CHANGE_MODE_SNAP:
+            case RESOLUTION_CHANGE_MODE_ARBITRARY:
+                this.resolutionChangeMode = mode;
+                break;
+            default:
+                this.resolutionChangeMode = RESOLUTION_CHANGE_MODE_PROMPT;
                 break;
         }
     }
@@ -678,6 +699,7 @@ public class Container {
             data.put("touchscreenMode", touchscreenMode);
             // Shooter mode flag
             data.put("shooterMode", shooterMode);
+            data.put("resolutionChangeMode", resolutionChangeMode);
             // Gesture configuration JSON
             if (gestureConfig != null && !gestureConfig.isEmpty()) {
                 data.put("gestureConfig", gestureConfig);
@@ -866,6 +888,9 @@ public class Container {
                     break;
                 case "shooterMode" :
                     setShooterMode(data.getBoolean(key));
+                    break;
+                case "resolutionChangeMode" :
+                    setResolutionChangeMode(data.getString(key));
                     break;
                 case "gestureConfig" :
                     setGestureConfig(data.optString(key, ""));
