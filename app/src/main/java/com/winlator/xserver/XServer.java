@@ -11,6 +11,7 @@ import com.winlator.xserver.extensions.DRI3Extension;
 import com.winlator.xserver.extensions.Extension;
 import com.winlator.xserver.extensions.MITSHMExtension;
 import com.winlator.xserver.extensions.PresentExtension;
+import com.winlator.xserver.extensions.RandRExtension;
 import com.winlator.xserver.extensions.SyncExtension;
 
 import java.nio.charset.Charset;
@@ -198,6 +199,24 @@ public class XServer {
         extensions.put(DRI3Extension.MAJOR_OPCODE, new DRI3Extension());
         extensions.put(PresentExtension.MAJOR_OPCODE, new PresentExtension());
         extensions.put(SyncExtension.MAJOR_OPCODE, new SyncExtension());
+        extensions.put(RandRExtension.MAJOR_OPCODE, new RandRExtension(this));
+    }
+
+    /**
+     * Update the X server's logical screen resolution and notify all connected
+     * X clients via RRScreenChangeNotify (RandR). Called when the Android GL
+     * surface changes size (split-screen, foldable open, windowed resize).
+     */
+    public void updateScreenSize(int width, int height) {
+        if (screenInfo.width == (short) width && screenInfo.height == (short) height) return;
+        screenInfo.update(width, height);
+        windowManager.resizeRootWindow(width, height);
+        RandRExtension randr = (RandRExtension) getExtensionByName("RANDR");
+        if (randr != null) {
+            randr.notifyScreenChange(
+                    screenInfo.width, screenInfo.height,
+                    screenInfo.getWidthInMillimeters(), screenInfo.getHeightInMillimeters());
+        }
     }
 
     public <T extends Extension> T getExtension(int opcode) {

@@ -351,6 +351,7 @@ fun XServerScreen(
     var keyboardRequestedFromOverlay by remember { mutableStateOf(false) }
     var showQuickMenu by remember { mutableStateOf(false) }
     var hasPhysicalController by remember { mutableStateOf(false) }
+    var pendingResolutionChange by remember { mutableStateOf<app.gamenative.ui.model.PendingResolutionChange?>(null) }
     var keepPausedForEditor by remember { mutableStateOf(false) }
     var performanceHudView by remember { mutableStateOf<PerformanceHudView?>(null) }
     var performanceHudHost by remember { mutableStateOf<FrameLayout?>(null) }
@@ -928,6 +929,38 @@ fun XServerScreen(
                     // TODO: make 'force fullscreen' be an option of the app being launched
                     if (container.executablePath.isNotBlank()) {
                         renderer.forceFullscreenWMClass = Paths.get(container.executablePath).name
+                    }
+                }
+
+                // Wire up the surface-size-changed callback so that when the Android
+                // container is resized (split-screen, foldable, windowed) we either
+                // apply the new resolution immediately or prompt the user.
+                renderer.setOnSurfaceSizeChangedListener { w, h ->
+                    val xServer = getxServer()
+                    // Parse the user's configured game resolution to preserve their pixel budget
+                    val preferred = container.screenSize.split("x")
+                    val preferredW = preferred.getOrNull(0)?.toIntOrNull() ?: w
+                    val preferredH = preferred.getOrNull(1)?.toIntOrNull() ?: h
+                    when (container.resolutionChangeMode) {
+                        com.winlator.container.Container.RESOLUTION_CHANGE_MODE_ARBITRARY -> {
+                            xServer.updateScreenSize(w, h)
+                        }
+                        com.winlator.container.Container.RESOLUTION_CHANGE_MODE_SNAP -> {
+                            val snapped = app.gamenative.ResolutionSnapper.findBestFit(w, h, preferredW, preferredH)
+                            xServer.updateScreenSize(snapped.width, snapped.height)
+                        }
+                        else -> { // PROMPT (default)
+                            val snapped = app.gamenative.ResolutionSnapper.findBestFit(w, h, preferredW, preferredH)
+                            val currentW = xServer.screenInfo.width.toInt()
+                            val currentH = xServer.screenInfo.height.toInt()
+                            if (snapped.width != currentW || snapped.height != currentH) {
+                                pendingResolutionChange = app.gamenative.ui.model.PendingResolutionChange(
+                                    containerWidth = w,
+                                    containerHeight = h,
+                                    snapped = snapped,
+                                )
+                            }
+                        }
                     }
                 }
                 // Remove any previous listener before adding a new one (handles key(isPortrait) recreation)
@@ -1539,6 +1572,31 @@ fun XServerScreen(
                 showElementEditor = false
                 // Keep edit mode active so user can edit other elements
             }
+        )
+    }
+
+    // Resolution Change Dialog — shown when the container is resized and the game
+    // may need to switch to a standard resolution.
+    pendingResolutionChange?.let { pending ->
+        app.gamenative.ui.component.dialog.ResolutionChangeDialog(
+            pending = pending,
+            onUseSnapped = { rememberChoice ->
+                pendingResolutionChange = null
+                xServerView?.getxServer()?.updateScreenSize(pending.snapped.width, pending.snapped.height)
+                if (rememberChoice) {
+                    container.setResolutionChangeMode(com.winlator.container.Container.RESOLUTION_CHANGE_MODE_SNAP)
+                    container.saveData()
+                }
+            },
+            onUseExact = { rememberChoice ->
+                pendingResolutionChange = null
+                xServerView?.getxServer()?.updateScreenSize(pending.containerWidth, pending.containerHeight)
+                if (rememberChoice) {
+                    container.setResolutionChangeMode(com.winlator.container.Container.RESOLUTION_CHANGE_MODE_ARBITRARY)
+                    container.saveData()
+                }
+            },
+            onDismiss = { pendingResolutionChange = null },
         )
     }
 

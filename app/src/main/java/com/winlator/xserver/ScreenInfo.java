@@ -1,8 +1,8 @@
 package com.winlator.xserver;
 
 public class ScreenInfo {
-    public final short width;
-    public final short height;
+    public volatile short width;
+    public volatile short height;
 
     public ScreenInfo(String value) {
         String[] parts = value.split("x");
@@ -13,6 +13,11 @@ public class ScreenInfo {
     public ScreenInfo(int width, int height) {
         this.width = (short)width;
         this.height = (short)height;
+    }
+
+    public void update(int width, int height) {
+        this.width = (short) width;
+        this.height = (short) height;
     }
 
     public short getWidthInMillimeters() {

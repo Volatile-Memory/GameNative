@@ -57,6 +57,26 @@ public class WindowManager extends XResourceManager {
         return windows.get(id);
     }
 
+    /**
+     * Resize the root window and its backing drawable to match the new Android
+     * surface dimensions. Triggers onUpdateWindowGeometry so GLRenderer rebuilds
+     * the render list at the new size.
+     */
+    public void resizeRootWindow(int width, int height) {
+        short sw = (short) width;
+        short sh = (short) height;
+        if (rootWindow.getWidth() == sw && rootWindow.getHeight() == sh) return;
+
+        Drawable oldContent = rootWindow.getContent();
+        drawableManager.removeDrawable(oldContent.id);
+        Drawable newContent = drawableManager.createDrawable(oldContent.id, sw, sh, oldContent.visual);
+        newContent.setOnDrawListener(() -> triggerOnUpdateWindowContent(rootWindow));
+        rootWindow.setContent(newContent);
+        rootWindow.setWidth(sw);
+        rootWindow.setHeight(sh);
+        triggerOnUpdateWindowGeometry(rootWindow, true);
+    }
+
     public Window findWindowWithProcessId(int processId) {
         for (int i = 0; i < windows.size(); i++) {
             Window window = windows.valueAt(i);
