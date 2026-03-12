@@ -66,6 +66,36 @@ object ResolutionSnapper {
         } ?: STANDARD_RESOLUTIONS.last()
     }
 
+    /**
+     * Find the standard resolution that best fits the new container's aspect ratio
+     * while staying close to the user's configured pixel budget.
+     *
+     * Scoring: `aspectDelta * 3.0 + pixelRatio`
+     * - `aspectDelta` = |res.aspect − container.aspect| (0 = perfect aspect match)
+     * - `pixelRatio`  = |res.pixels − preferred.pixels| / preferred.pixels (0 = same pixel count)
+     *
+     * Aspect ratio is weighted 3× to prioritise filling the container without letterboxing
+     * over hitting the exact pixel budget.
+     *
+     * @param containerW  New physical container width (from GLRenderer debounce callback)
+     * @param containerH  New physical container height
+     * @param preferredW  User's configured game resolution width (parsed from container.screenSize)
+     * @param preferredH  User's configured game resolution height
+     */
+    fun findBestFit(
+        containerW: Int, containerH: Int,
+        preferredW: Int, preferredH: Int,
+    ): StandardResolution {
+        val targetPixels = preferredW.toLong() * preferredH
+        val containerAspect = containerW.toFloat() / containerH
+        return STANDARD_RESOLUTIONS.minByOrNull { res ->
+            val resAspect = res.width.toFloat() / res.height
+            val aspectDelta = kotlin.math.abs(resAspect - containerAspect)
+            val pixelRatio = kotlin.math.abs(res.width.toLong() * res.height - targetPixels).toDouble() / targetPixels
+            aspectDelta * 3.0 + pixelRatio
+        } ?: STANDARD_RESOLUTIONS.last()
+    }
+
     /** Returns true if [width]×[height] is already an exact standard resolution. */
     fun isStandard(width: Int, height: Int): Boolean =
         STANDARD_RESOLUTIONS.any { it.width == width && it.height == height }

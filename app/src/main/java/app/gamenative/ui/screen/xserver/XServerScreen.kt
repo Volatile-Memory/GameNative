@@ -937,16 +937,20 @@ fun XServerScreen(
                 // apply the new resolution immediately or prompt the user.
                 renderer.setOnSurfaceSizeChangedListener { w, h ->
                     val xServer = getxServer()
+                    // Parse the user's configured game resolution to preserve their pixel budget
+                    val preferred = container.screenSize.split("x")
+                    val preferredW = preferred.getOrNull(0)?.toIntOrNull() ?: w
+                    val preferredH = preferred.getOrNull(1)?.toIntOrNull() ?: h
                     when (container.resolutionChangeMode) {
                         com.winlator.container.Container.RESOLUTION_CHANGE_MODE_ARBITRARY -> {
                             xServer.updateScreenSize(w, h)
                         }
                         com.winlator.container.Container.RESOLUTION_CHANGE_MODE_SNAP -> {
-                            val snapped = app.gamenative.ResolutionSnapper.findClosest(w, h)
+                            val snapped = app.gamenative.ResolutionSnapper.findBestFit(w, h, preferredW, preferredH)
                             xServer.updateScreenSize(snapped.width, snapped.height)
                         }
                         else -> { // PROMPT (default)
-                            val snapped = app.gamenative.ResolutionSnapper.findClosest(w, h)
+                            val snapped = app.gamenative.ResolutionSnapper.findBestFit(w, h, preferredW, preferredH)
                             val currentW = xServer.screenInfo.width.toInt()
                             val currentH = xServer.screenInfo.height.toInt()
                             if (snapped.width != currentW || snapped.height != currentH) {
