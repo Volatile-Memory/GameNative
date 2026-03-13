@@ -34,6 +34,13 @@ import app.gamenative.events.AndroidEvent
 import app.gamenative.service.SteamService
 import app.gamenative.service.gog.GOGService
 import app.gamenative.service.epic.EpicService
+import android.app.PendingIntent
+import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.graphics.drawable.Icon
+import android.util.Rational
 import app.gamenative.ui.PluviaMain
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.utils.AnimatedPngDecoder
@@ -117,6 +124,8 @@ class MainActivity : ComponentActivity() {
     // Add a property to keep a reference to the orientation sensor listener
     private var orientationSensorListener: OrientationEventListener? = null
     private var desiredSystemUiVisible: Boolean = false
+    private var pipReceiver: BroadcastReceiver? = null
+    private var isMuted = false
 
     override fun attachBaseContext(newBase: Context) {
         // Initialize PrefManager to read language setting
@@ -531,6 +540,115 @@ class MainActivity : ComponentActivity() {
         // Re-apply immersive mode when window gains focus to ensure bars stay hidden
         if (hasFocus && !desiredSystemUiVisible) {
             applyImmersiveMode()
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (SteamService.keepAlive && PluviaApp.xEnvironment != null) {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+                enterPictureInPictureMode(params)
+            }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        PluviaApp.events.emit(AndroidEvent.PictureInPictureModeChanged(isInPictureInPictureMode))
+        if (isInPictureInPictureMode) {
+            val filter = IntentFilter().apply {
+                addAction("app.gamenative.PIP_ACTION_PLAY")
+                addAction("app.gamenative.PIP_ACTION_PAUSE")
+                addAction("app.gamenative.PIP_ACTION_MUTE")
+                addAction("app.gamenative.PIP_ACTION_UNMUTE")
+            }
+            pipReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    when (intent?.action) {
+                        "app.gamenative.PIP_ACTION_PLAY" -> {
+                            if (PluviaApp.isOverlayPaused && !PluviaApp.isNeverSuspendMode()) {
+                                PluviaApp.xEnvironment?.onResume()
+                                PluviaApp.isOverlayPaused = false
+                                updatePictureInPictureActions()
+                            }
+                        }
+                        "app.gamenative.PIP_ACTION_PAUSE" -> {
+                            if (!PluviaApp.isNeverSuspendMode()) {
+                                PluviaApp.xEnvironment?.onPause()
+                                PluviaApp.isOverlayPaused = true
+                                updatePictureInPictureActions()
+                            }
+                        }
+                        "app.gamenative.PIP_ACTION_MUTE" -> {
+                            val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, 0)
+                            isMuted = true
+                            updatePictureInPictureActions()
+                        }
+                        "app.gamenative.PIP_ACTION_UNMUTE" -> {
+                            val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, 0)
+                            isMuted = false
+                            updatePictureInPictureActions()
+                        }
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(pipReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(pipReceiver, filter)
+            }
+            updatePictureInPictureActions()
+        } else {
+            pipReceiver?.let {
+                unregisterReceiver(it)
+                pipReceiver = null
+            }
+            if (isMuted) {
+                // Unmute if we leave PiP
+                val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, 0)
+                isMuted = false
+            }
+        }
+    }
+
+    private fun updatePictureInPictureActions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val actions = mutableListOf<RemoteAction>()
+
+            // Play/Pause Action
+            val isPaused = PluviaApp.isOverlayPaused
+            val playPauseActionId = if (isPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
+            val playPauseTitle = if (isPaused) "Play" else "Pause"
+            val playPauseIntentAction = if (isPaused) "app.gamenative.PIP_ACTION_PLAY" else "app.gamenative.PIP_ACTION_PAUSE"
+            val playPausePendingIntent = PendingIntent.getBroadcast(
+                this, 0, Intent(playPauseIntentAction), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val playPauseAction = RemoteAction(Icon.createWithResource(this, playPauseActionId), playPauseTitle, playPauseTitle, playPausePendingIntent)
+            actions.add(playPauseAction)
+
+            // Mute/Unmute Action
+            val muteUnmuteActionId = if (isMuted) android.R.drawable.ic_lock_silent_mode_off else android.R.drawable.ic_lock_silent_mode
+            val muteUnmuteTitle = if (isMuted) "Unmute" else "Mute"
+            val muteUnmuteIntentAction = if (isMuted) "app.gamenative.PIP_ACTION_UNMUTE" else "app.gamenative.PIP_ACTION_MUTE"
+            val muteUnmutePendingIntent = PendingIntent.getBroadcast(
+                this, 1, Intent(muteUnmuteIntentAction), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val muteUnmuteAction = RemoteAction(Icon.createWithResource(this, muteUnmuteActionId), muteUnmuteTitle, muteUnmuteTitle, muteUnmutePendingIntent)
+            actions.add(muteUnmuteAction)
+
+            val params = PictureInPictureParams.Builder()
+                .setActions(actions)
+                .build()
+            setPictureInPictureParams(params)
         }
     }
 

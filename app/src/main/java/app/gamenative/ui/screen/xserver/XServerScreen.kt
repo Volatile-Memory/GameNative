@@ -811,10 +811,35 @@ fun XServerScreen(
             Timber.i("onForceCloseApp")
             exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, frameRating, currentAppInfo, container, appId, onExit, navigateBack)
         }
+        val onPiPModeChanged: (AndroidEvent.PictureInPictureModeChanged) -> Unit = {
+            if (it.isInPictureInPictureMode) {
+                // Hide input controls when entering PiP
+                if (areControlsVisible) {
+                    hideInputControls()
+                }
+            } else {
+                // Restore input controls if needed
+                // It will be restored manually by user or auto logic, but we can attempt to restore
+                // if it was previously visible. For now just let user tap the screen or use logic
+                // But let's check if there's physical controller
+                val controllerManager = ControllerManager.getInstance()
+                controllerManager.scanForDevices()
+                val hasPhysicalController = controllerManager.getDetectedDevices().isNotEmpty()
+                val shouldShowControls = !container.isTouchscreenMode && !hasPhysicalController
+                if (shouldShowControls) {
+                    val profile = PluviaApp.inputControlsView?.profile
+                    if (profile != null) {
+                        showInputControls(profile, xServerView!!.getxServer().winHandler, container)
+                        areControlsVisible = true
+                    }
+                }
+            }
+        }
         val debugCallback = Callback<String> { outputLine ->
             Timber.i(outputLine ?: "")
         }
 
+        PluviaApp.events.on<AndroidEvent.PictureInPictureModeChanged, Unit>(onPiPModeChanged)
         PluviaApp.events.on<AndroidEvent.ActivityDestroyed, Unit>(onActivityDestroyed)
         PluviaApp.events.on<AndroidEvent.KeyEvent, Boolean>(onKeyEvent)
         PluviaApp.events.on<AndroidEvent.MotionEvent, Boolean>(onMotionEvent)
@@ -823,6 +848,7 @@ fun XServerScreen(
         ProcessHelper.addDebugCallback(debugCallback)
 
         onDispose {
+            PluviaApp.events.off<AndroidEvent.PictureInPictureModeChanged, Unit>(onPiPModeChanged)
             PluviaApp.events.off<AndroidEvent.ActivityDestroyed, Unit>(onActivityDestroyed)
             PluviaApp.events.off<AndroidEvent.KeyEvent, Boolean>(onKeyEvent)
             PluviaApp.events.off<AndroidEvent.MotionEvent, Boolean>(onMotionEvent)
