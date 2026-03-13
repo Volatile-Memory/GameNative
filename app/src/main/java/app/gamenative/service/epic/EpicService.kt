@@ -175,6 +175,8 @@ class EpicService : Service() {
             return getInstance()?.activeDownloads?.keys?.firstOrNull()
         }
 
+        fun getAllActiveDownloads(): Map<Int, app.gamenative.data.DownloadInfo> = getInstance()?.activeDownloads ?: emptyMap()
+
         fun getDownloadInfo(appId: Int): DownloadInfo? {
             return getInstance()?.activeDownloads?.get(appId)
         }

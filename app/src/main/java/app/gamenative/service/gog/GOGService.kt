@@ -190,6 +190,8 @@ class GOGService : Service() {
             return getInstance()?.activeDownloads?.keys?.firstOrNull()
         }
 
+        fun getAllActiveDownloads(): Map<String, app.gamenative.data.DownloadInfo> = getInstance()?.activeDownloads ?: emptyMap()
+
         fun getDownloadInfo(gameId: String): DownloadInfo? {
             return getInstance()?.activeDownloads?.get(gameId)
         }

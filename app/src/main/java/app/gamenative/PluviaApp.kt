@@ -44,10 +44,13 @@ class PluviaApp : SplitCompatApplication() {
     @Inject lateinit var gogGameDao: GOGGameDao
     @Inject lateinit var amazonGameDao: AmazonGameDao
 
+    @Inject lateinit var downloadNotificationManager: app.gamenative.service.DownloadNotificationManager
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
+        downloadNotificationManager.init()
 
         // Allows to find resource streams not closed within GameNative and JavaSteam
         if (BuildConfig.DEBUG) {
