@@ -354,6 +354,8 @@ class AmazonService : Service() {
         // ── Download management ───────────────────────────────────────────────
 
         /** Returns the active [DownloadInfo] for [productId], or null if not downloading. */
+        fun getAllActiveDownloads(): Map<String, app.gamenative.data.DownloadInfo> = instance?.activeDownloads ?: emptyMap()
+
         fun getDownloadInfo(productId: String): DownloadInfo? =
             getInstance()?.activeDownloads?.get(productId)
 

@@ -525,6 +525,8 @@ class SteamService : Service(), IChallengeUrlChanged {
             return getInstalledApp(appId)?.dlcDepots
         }
 
+        fun getAllDownloadJobs(): Map<Int, app.gamenative.data.DownloadInfo> = downloadJobs
+
         fun getAppDownloadInfo(appId: Int): DownloadInfo? {
             return downloadJobs[appId]
         }
