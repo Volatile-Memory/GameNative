@@ -13,6 +13,7 @@ import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.FavoritesManager
+import app.gamenative.data.FavoritesRepository
 import app.gamenative.data.FavoritesUtils
 import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.GameSource
@@ -94,6 +95,7 @@ class LibraryViewModel @Inject constructor(
     private val epicGameDao: EpicGameDao,
     private val amazonGameDao: AmazonGameDao,
     @ApplicationContext private val context: Context,
+    private val favoritesRepository: FavoritesRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LibraryState(isLoading = true))
@@ -204,7 +206,7 @@ class LibraryViewModel @Inject constructor(
         // otherwise only the badge count can change, so we update that cheaply instead of running a
         // full (and visibly loading) re-filter of the entire library.
         viewModelScope.launch(Dispatchers.IO) {
-            FavoritesManager.favorites
+            favoritesRepository.favorites
                 .drop(1)
                 .collectLatest { favorites ->
                     if (_state.value.currentTab == LibraryTab.FAVORITES) {
@@ -1028,7 +1030,7 @@ class LibraryViewModel @Inject constructor(
             // sources can't match it — keep them out of the combined list (and their tab counts).
             val steamCollectionSelected = allowedSteamAppIds != null
 
-            val favoriteIds = FavoritesManager.favorites.value
+            val favoriteIds = favoritesRepository.favorites.value
 
             val combined = buildList {
                 if (includeSteam) addAll(steamEntries)

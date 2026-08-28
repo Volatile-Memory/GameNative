@@ -5,10 +5,14 @@ import android.os.Build
 import android.os.StrictMode
 import android.util.DisplayMetrics
 import android.view.Display
+import android.os.SystemClock
+import android.os.Trace
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavController
+import app.gamenative.data.FavoritesManager
+import app.gamenative.data.FavoritesRepository
 import app.gamenative.db.dao.AmazonGameDao
 import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.events.EventDispatcher
@@ -52,14 +56,30 @@ class PluviaApp : SplitCompatApplication() {
 
     @Inject lateinit var gogGameDao: GOGGameDao
     @Inject lateinit var amazonGameDao: AmazonGameDao
+    @Inject lateinit var favoritesRepository: FavoritesRepository
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private inline fun <T> traceStartupStep(sectionName: String, block: () -> T): T {
+        val start = SystemClock.elapsedRealtime()
+        Trace.beginSection(sectionName)
+        try {
+            return block()
+        } finally {
+            Trace.endSection()
+            val duration = SystemClock.elapsedRealtime() - start
+            Timber.d("[StartupInit] %s took %d ms", sectionName, duration)
+        }
+    }
+
     override fun onCreate() {
+        val appCreateStart = SystemClock.elapsedRealtime()
         super.onCreate()
         instance = this
 
-        preloadSystemLibraries()
+        FavoritesManager.delegate = favoritesRepository
+
+        traceStartupStep("preloadSystemLibraries") { preloadSystemLibraries() }
 
         // Allows to find resource streams not closed within GameNative and JavaSteam
         if (BuildConfig.DEBUG) {
@@ -75,21 +95,21 @@ class PluviaApp : SplitCompatApplication() {
             Timber.plant(ReleaseTree())
         }
 
-        NetworkMonitor.init(this)
+        traceStartupStep("NetworkMonitor.init") { NetworkMonitor.init(this) }
 
         // Init our custom crash handler.
-        CrashHandler.initialize(this)
+        traceStartupStep("CrashHandler.initialize") { CrashHandler.initialize(this) }
 
         // Init our datastore preferences.
-        PrefManager.init(this)
-        FrontendSyncManager.init(this)
+        traceStartupStep("PrefManager.init") { PrefManager.init(this) }
+        traceStartupStep("FrontendSyncManager.init") { FrontendSyncManager.init(this) }
 
         // Initialize GOGConstants
-        app.gamenative.service.gog.GOGConstants.init(this)
+        traceStartupStep("GOGConstants.init") { app.gamenative.service.gog.GOGConstants.init(this) }
 
-        DownloadService.populateDownloadService(this)
+        traceStartupStep("DownloadService.populateDownloadService") { DownloadService.populateDownloadService(this) }
 
-        migrateGogAmazonPaths()
+        traceStartupStep("migrateGogAmazonPaths") { migrateGogAmazonPaths() }
 
         appScope.launch {
             ContainerMigrator.migrateLegacyContainersIfNeeded(
@@ -120,8 +140,10 @@ class PluviaApp : SplitCompatApplication() {
             /* turn every event into an identified one */
             personProfiles = PersonProfiles.ALWAYS
         }
-        PostHogAndroid.setup(this, postHogConfig)
-        com.posthog.PostHog.register("build_flavor", BuildConfig.FLAVOR)
+        traceStartupStep("PostHogAndroid.setup") {
+            PostHogAndroid.setup(this, postHogConfig)
+            com.posthog.PostHog.register("build_flavor", BuildConfig.FLAVOR)
+        }
 
         if (PrefManager.usageAnalyticsEnabled) {
             com.posthog.PostHog.capture(
@@ -132,9 +154,11 @@ class PluviaApp : SplitCompatApplication() {
             )
         }
 
-        PlayIntegrity.warmUp(this)
+        traceStartupStep("PlayIntegrity.warmUp") { PlayIntegrity.warmUp(this) }
 
-        PowerManager.initialize(this)
+        traceStartupStep("PowerManager.initialize") { PowerManager.initialize(this) }
+
+        Timber.i("[StartupInit] Total PluviaApp.onCreate took %d ms", SystemClock.elapsedRealtime() - appCreateStart)
     }
 
     /**
