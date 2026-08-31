@@ -58,6 +58,7 @@ class GameStorageProvider : DocumentsProvider() {
             Document.COLUMN_SIZE,
             Document.COLUMN_LAST_MODIFIED,
             Document.COLUMN_FLAGS,
+            Document.COLUMN_ICON,
         )
 
         // The subtree of the Wine prefix where user-writable saves live.
@@ -244,6 +245,7 @@ class GameStorageProvider : DocumentsProvider() {
         val isDir = file.isDirectory
         val mimeType = if (isDir) Document.MIME_TYPE_DIR else getMimeType(file.name)
         val flags = computeFlags(file)
+        val iconRes = if (isDir) folderIconRes(file.name) else null
 
         cursor.newRow().apply {
             add(Document.COLUMN_DOCUMENT_ID, file.absolutePath)
@@ -252,6 +254,7 @@ class GameStorageProvider : DocumentsProvider() {
             add(Document.COLUMN_SIZE, if (isDir) null else file.length())
             add(Document.COLUMN_LAST_MODIFIED, file.lastModified())
             add(Document.COLUMN_FLAGS, flags)
+            add(Document.COLUMN_ICON, iconRes)
         }
     }
 
@@ -293,6 +296,24 @@ class GameStorageProvider : DocumentsProvider() {
         val ext = filename.substringAfterLast('.', "")
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.lowercase())
             ?: "application/octet-stream"
+    }
+
+    private fun folderIconRes(name: String): Int? = when (name) {
+        "drive_c"                           -> R.drawable.ic_folder_drive
+        "windows"                           -> R.drawable.ic_folder_windows
+        "system32", "syswow64"              -> R.drawable.ic_folder_system
+        "users"                             -> R.drawable.ic_folder_users
+        "Program Files", "Program Files (x86)" -> R.drawable.ic_folder_programs
+        "Temp", "temp"                      -> R.drawable.ic_folder_temp
+        "Documents", "My Documents"         -> R.drawable.ic_folder_documents
+        "Desktop"                           -> R.drawable.ic_folder_desktop
+        "Downloads"                         -> R.drawable.ic_folder_downloads
+        "Pictures", "My Pictures"           -> R.drawable.ic_folder_pictures
+        "Videos", "My Videos"               -> R.drawable.ic_folder_videos
+        "Music", "My Music"                 -> R.drawable.ic_folder_music
+        "AppData"                           -> R.drawable.ic_folder_appdata
+        "Saved Games"                       -> R.drawable.ic_folder_saved_games
+        else                                -> null
     }
 
     private fun platformIconRes(source: GameSource): Int = when (source) {
