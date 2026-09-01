@@ -1,7 +1,9 @@
 package app.gamenative.service
 
 import android.content.Context
-import app.gamenative.PrefManager
+import app.gamenative.PluviaApp
+import app.gamenative.preferences.AuthPreferences
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.utils.Net
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesWishlistSteamclient.CWishlist_AddToWishlist_Request
@@ -27,6 +29,9 @@ object SteamWishlistService {
     private const val STORE_UA =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
+    private val authPreferences: AuthPreferences
+        get() = PreferencesEntryPoint.get(PluviaApp.instance).authPreferences()
+
     sealed interface Outcome {
         data object Success : Outcome
         data object NoSession : Outcome
@@ -48,7 +53,7 @@ object SteamWishlistService {
         withContext(Dispatchers.IO) {
             val steamId = SteamService.userSteamId?.convertToUInt64()
             if (steamId != null && steamId != 0L) {
-                var token = PrefManager.accessToken.ifEmpty { null } ?: refreshAccessToken()
+                var token = authPreferences.accessToken.ifEmpty { null } ?: refreshAccessToken()
                 if (!token.isNullOrEmpty()) {
                     if (tryWebView(context, steamId, token, appId, campaignId)) return@withContext Outcome.Success
                     val fresh = refreshAccessToken()
@@ -82,7 +87,7 @@ object SteamWishlistService {
 
     private suspend fun webAttributedAdd(appId: Int, campaignId: String): Boolean {
         val steamId = SteamService.userSteamId?.convertToUInt64() ?: return false
-        var token = PrefManager.accessToken
+        var token = authPreferences.accessToken
         repeat(2) { attempt ->
             if (token.isEmpty()) token = refreshAccessToken() ?: return false
             val cookie = "steamLoginSecure=$steamId%7C%7C${URLEncoder.encode(token, "UTF-8")}; " +
@@ -138,12 +143,12 @@ object SteamWishlistService {
     private suspend fun refreshAccessToken(): String? {
         val client = SteamService.instance?.steamClient ?: return null
         val steamId = client.steamID ?: return null
-        val refresh = PrefManager.refreshToken.ifEmpty { return null }
+        val refresh = authPreferences.refreshToken.ifEmpty { return null }
         return try {
             val result = client.authentication.generateAccessTokenForApp(steamId, refresh, false).await()
             if (result.accessToken.isNotEmpty()) {
-                PrefManager.accessToken = result.accessToken
-                if (result.refreshToken.isNotEmpty()) PrefManager.refreshToken = result.refreshToken
+                authPreferences.accessToken = result.accessToken
+                if (result.refreshToken.isNotEmpty()) authPreferences.refreshToken = result.refreshToken
                 Timber.tag(TAG).i("refreshed store access token over CM")
                 result.accessToken
             } else {
@@ -166,7 +171,7 @@ object SteamWishlistService {
     // The public steamid read returns nothing for private wishlists, so prefer the
     // token-authenticated form, which always sees the caller's own list.
     suspend fun isWishlisted(appId: Int): Boolean? = withContext(Dispatchers.IO) {
-        readWishlist(PrefManager.accessToken.ifEmpty { null })?.let {
+        readWishlist(authPreferences.accessToken.ifEmpty { null })?.let {
             return@withContext it.contains(appId)
         }
         val fresh = refreshAccessToken() ?: return@withContext null

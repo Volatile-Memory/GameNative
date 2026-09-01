@@ -18,6 +18,7 @@ import app.gamenative.service.NotificationHelper
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.ExecutableSelectionUtils
 import app.gamenative.utils.MarkerUtils
+import app.gamenative.preferences.PreferencesEntryPoint
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.AndroidEntryPoint
@@ -375,8 +376,8 @@ class AmazonService : Service() {
         private fun getPartialInstallPaths(context: Context): Set<String> {
             val roots = buildList {
                 add(AmazonConstants.internalAmazonGamesPath(context))
-                if (app.gamenative.PrefManager.externalStoragePath.isNotBlank()) {
-                    add(AmazonConstants.externalAmazonGamesPath())
+                if (PreferencesEntryPoint.get(context).downloadPreferences().externalStoragePath.isNotBlank()) {
+                    add(AmazonConstants.externalAmazonGamesPath(context))
                 }
             }.distinct()
 

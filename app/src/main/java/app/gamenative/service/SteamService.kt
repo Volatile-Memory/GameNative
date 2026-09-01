@@ -18,7 +18,12 @@ import androidx.room.withTransaction
 import app.gamenative.BuildConfig
 import app.gamenative.NetworkMonitor
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
+import app.gamenative.preferences.AuthPreferences
+import app.gamenative.preferences.ContainerPreferences
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.preferences.LibraryPreferences
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.AppInfo
 import app.gamenative.data.CachedLicense
@@ -159,6 +164,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.filter
@@ -195,8 +201,7 @@ import java.nio.ByteOrder
 class SteamService : Service(), IChallengeUrlChanged {
 
     override fun attachBaseContext(newBase: Context) {
-        PrefManager.init(newBase)
-        val languageCode = PrefManager.appLanguage
+        val languageCode = PreferencesEntryPoint.get(newBase).generalPreferences().appLanguage
         val context = LocaleHelper.applyLanguage(newBase, languageCode)
         super.attachBaseContext(context)
     }
@@ -213,6 +218,21 @@ class SteamService : Service(), IChallengeUrlChanged {
             Timber.e(throwable, "[${clazz.simpleName}] -> $logMessage")
         }
     }
+
+    @Inject
+    lateinit var authPreferences: AuthPreferences
+
+    @Inject
+    lateinit var containerPreferences: ContainerPreferences
+
+    @Inject
+    lateinit var downloadPreferences: DownloadPreferences
+
+    @Inject
+    lateinit var generalPreferences: GeneralPreferences
+
+    @Inject
+    lateinit var libraryPreferences: LibraryPreferences
 
     @Inject
     lateinit var db: PluviaDatabase
@@ -315,10 +335,13 @@ class SteamService : Service(), IChallengeUrlChanged {
     private val _isHandlingConflict = AtomicBoolean(false)
 
     // Cache in-memory the local persona state.
-    private val _localPersona = MutableStateFlow(
-        SteamFriend(name = PrefManager.steamUserName, avatarHash = PrefManager.steamUserAvatarHash),
-    )
-    val localPersona = _localPersona.asStateFlow()
+    private val _localPersona by lazy {
+        val auth = PreferencesEntryPoint.get(this).authPreferences()
+        MutableStateFlow(
+            SteamFriend(name = auth.steamUserName, avatarHash = auth.steamUserAvatarHash),
+        )
+    }
+    val localPersona: StateFlow<SteamFriend> get() = _localPersona.asStateFlow()
 
     companion object {
         const val MAX_PICS_BUFFER = 256
@@ -357,7 +380,8 @@ class SteamService : Service(), IChallengeUrlChanged {
 
         /** @return true if download may proceed; false if blocked (notifies user) */
         private fun checkWifiOrNotify(): Boolean {
-            if (PrefManager.downloadOnWifiOnly && !hasWifiOrEthernet) {
+            val downloadPrefs = instance?.downloadPreferences
+            if (downloadPrefs?.downloadOnWifiOnly == true && !hasWifiOrEthernet) {
                 val svc = instance
                 if (svc != null) {
                     svc.notificationHelper.notify(svc.getString(R.string.download_no_wifi))
@@ -519,7 +543,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             get() = Paths.get(DownloadService.baseDataDirPath, "Steam", "steamapps", "common").pathString
 
         private val externalAppInstallRoot: String
-            get() = PrefManager.externalStoragePath
+            get() = instance?.downloadPreferences?.externalStoragePath.orEmpty()
 
         val externalAppInstallPath: String
             get() = Paths.get(externalAppInstallRoot, "Steam", "steamapps", "common").pathString
@@ -529,7 +553,8 @@ class SteamService : Service(), IChallengeUrlChanged {
             get() {
                 val paths = mutableListOf(internalAppInstallPath)
                 // only include configured external path if it's a real absolute path
-                if (PrefManager.externalStoragePath.isNotBlank()) {
+                val extPath = instance?.downloadPreferences?.externalStoragePath.orEmpty()
+                if (extPath.isNotBlank()) {
                     paths += externalAppInstallPath
                 }
                 for (volPath in DownloadService.externalVolumePaths) {
@@ -550,7 +575,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             }
 
         private val externalStorageReady: Boolean
-            get() = PrefManager.useExternalStorage && File(externalAppInstallRoot).let {
+            get() = (instance?.downloadPreferences?.useExternalStorage == true) && File(externalAppInstallRoot).let {
                 it.path.isNotBlank() && it.exists()
             }
 
@@ -581,7 +606,7 @@ class SteamService : Service(), IChallengeUrlChanged {
 
         val defaultAppStagingPath: String
             get() {
-                return if (PrefManager.useExternalStorage) {
+                return if (instance?.downloadPreferences?.useExternalStorage == true) {
                     externalAppStagingPath
                 } else {
                     internalAppStagingPath
@@ -598,7 +623,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             get() = instance?._loginResult == LoginResult.InProgress
 
         suspend fun setPersonaState(state: EPersonaState) = withContext(Dispatchers.IO) {
-            PrefManager.personaState = state
+            instance?.authPreferences?.personaState = state
             instance?._steamFriends?.setPersonaState(state)
         }
 
@@ -1069,7 +1094,7 @@ class SteamService : Service(), IChallengeUrlChanged {
          * @return Map of app ID to depot ID to depot info
          */
         fun getDownloadableDepots(appId: Int): Map<Int, DepotInfo> {
-            val preferredLanguage = PrefManager.containerLanguage
+            val preferredLanguage = instance?.containerPreferences?.containerLanguage ?: "english"
             return getDownloadableDepots(appId, preferredLanguage)
         }
 
@@ -1179,7 +1204,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             if (resolved != null) return resolved
 
             // nothing on disk yet — default to preferred install location
-            if (PrefManager.useExternalStorage) {
+            if (instance?.downloadPreferences?.useExternalStorage == true) {
                 return Paths.get(externalAppInstallPath, appName).pathString
             }
             return Paths.get(internalAppInstallPath, appName).pathString
@@ -1409,9 +1434,9 @@ class SteamService : Service(), IChallengeUrlChanged {
                 // For imported game, do cleanup
                 // Remove from manual folders list and invalidate cache
                 val folderPath = appInfo.customInstallPath
-                val manualFolders = PrefManager.customGameManualFolders.toMutableSet()
+                val manualFolders = instance?.libraryPreferences?.customGameManualFolders?.toMutableSet() ?: mutableSetOf()
                 manualFolders.remove(folderPath)
-                PrefManager.customGameManualFolders = manualFolders
+                instance?.libraryPreferences?.customGameManualFolders = manualFolders
                 CustomGameScanner.invalidateCache()
 
                 MarkerUtils.removeMarker(folderPath, Marker.DOWNLOAD_COMPLETE_MARKER)
@@ -1487,7 +1512,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val containerLanguage = if (container != null) {
                     container.language
                 } else {
-                    PrefManager.containerLanguage
+                    instance?.containerPreferences?.containerLanguage ?: "english"
                 }
 
                 Timber.tag("SteamService").d("downloadApp: downloading app $appId with language $containerLanguage, branch $branch")
@@ -2514,7 +2539,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val maxAttempts = 3
                 for (attempt in 1..maxAttempts) {
                     try {
-                        PrefManager.clientId?.let { clientId ->
+                        instance?.authPreferences?.clientId?.let { clientId ->
                             instance?.let { steamInstance ->
                                 getAppInfoOf(appId)?.let { appInfo ->
                                     steamInstance._steamCloud?.let { steamCloud ->
@@ -2536,7 +2561,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                                                 Timber.i(
                                                     "Signaling app launch:\n\tappId: %d\n\tclientId: %s\n\tosType: %s",
                                                     appId,
-                                                    PrefManager.clientId,
+                                                    clientId,
                                                     EOSType.WinUnknown,
                                                 )
 
@@ -2606,7 +2631,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val maxAttempts = 3
                 for (attempt in 1..maxAttempts) {
                     try {
-                        PrefManager.clientId?.let { clientId ->
+                        instance?.authPreferences?.clientId?.let { clientId ->
                             instance?.let { steamInstance ->
                                 getAppInfoOf(appId)?.let { appInfo ->
                                     steamInstance._steamCloud?.let { steamCloud ->
@@ -2668,7 +2693,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                     val maxAttempts = 3
                     for (attempt in 1..maxAttempts) {
                         try {
-                            PrefManager.clientId?.let { clientId ->
+                            instance?.authPreferences?.clientId?.let { clientId ->
                                 instance?.let { steamInstance ->
                                     getAppInfoOf(appId)?.let { appInfo ->
                                         steamInstance._steamCloud?.let { steamCloud ->
@@ -2763,6 +2788,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             clientId: Long? = null,
         ) {
             val steamUser = instance!!._steamUser!!
+            val authPreferences = PreferencesEntryPoint.get(instance!!).authPreferences()
 
             // Sensitive info, only print in DEBUG build.
 //            if (BuildConfig.DEBUG) {
@@ -2780,19 +2806,19 @@ class SteamService : Service(), IChallengeUrlChanged {
 //                )
 //            }
 
-            PrefManager.username = username
+            authPreferences.username = username
 
             if ((password != null && rememberSession) || refreshToken != null) {
                 if (accessToken != null) {
-                    PrefManager.accessToken = accessToken
+                    authPreferences.accessToken = accessToken
                 }
 
                 if (refreshToken != null) {
-                    PrefManager.refreshToken = refreshToken
+                    authPreferences.refreshToken = refreshToken
                 }
 
                 if (clientId != null) {
-                    PrefManager.clientId = clientId
+                    authPreferences.clientId = clientId
                 }
             }
 
@@ -2992,7 +3018,18 @@ class SteamService : Service(), IChallengeUrlChanged {
         }
 
         private fun clearUserData(clearCloudSyncState: Boolean = false) {
-            PrefManager.clearSteamSessionPreferences()
+            instance?.let { s ->
+                s.scope.launch {
+                    s.authPreferences.clearSteamSession()
+                }
+            } ?: run {
+                PluviaApp.instance?.let { ctx ->
+                    val ep = PreferencesEntryPoint.get(ctx)
+                    CoroutineScope(Dispatchers.IO).launch {
+                        ep.authPreferences().clearSteamSession()
+                    }
+                }
+            }
             instance?.clearPendingSync()
             clearDatabase(clearCloudSyncState = clearCloudSyncState)
             SteamCollectionRepository.clear()
@@ -3045,7 +3082,9 @@ class SteamService : Service(), IChallengeUrlChanged {
         }
 
         private fun performLogOffDuties(clearCloudSyncState: Boolean = false) {
-            val username = PrefManager.username
+            val username = instance?.authPreferences?.username
+                ?: PluviaApp.instance?.let { PreferencesEntryPoint.get(it).authPreferences().username }
+                ?: ""
 
             clearUserData(clearCloudSyncState = clearCloudSyncState)
             instance?._localPersona?.value = SteamFriend()
@@ -3272,7 +3311,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                 "${ImageFs.WINEPREFIX}/drive_c/users/xuser/AppData/Roaming/GSE Saves/$appId"
             ))
             val accountId = userSteamId?.accountID?.toInt()
-                ?: PrefManager.steamUserAccountId.takeIf { it != 0 }
+                ?: PreferencesEntryPoint.get(context).authPreferences().steamUserAccountId.takeIf { it != 0 }
             if (accountId != null) {
                 dirs.add(File(
                     imageFs.rootDir,
@@ -3525,7 +3564,7 @@ class SteamService : Service(), IChallengeUrlChanged {
 
             // no transition guard needed — if WiFi already down, downloadJobs is empty (no-op)
             private fun checkAndPauseDownloads() {
-                if (PrefManager.downloadOnWifiOnly && !hasActiveWifiOrEthernet()) {
+                if (downloadPreferences.downloadOnWifiOnly && !hasActiveWifiOrEthernet()) {
                     for ((appId, info) in downloadJobs.entries.toList()) {
                         Timber.d("Pausing download for $appId — WiFi/Ethernet lost")
                         info.cancel()
@@ -3573,7 +3612,7 @@ class SteamService : Service(), IChallengeUrlChanged {
 
             val configuration = SteamConfiguration.create {
                 it.withProtocolTypes(PROTOCOL_TYPES)
-                it.withCellID(PrefManager.cellId)
+                it.withCellID(authPreferences.cellId)
                 it.withServerListProvider(FileServerListProvider(File(serverListPath)))
                 it.withConnectionTimeout(60000L)
                 it.withHttpClient(
@@ -3793,8 +3832,8 @@ class SteamService : Service(), IChallengeUrlChanged {
             isAutoLoggingIn = true
 
             login(
-                username = PrefManager.username,
-                refreshToken = PrefManager.refreshToken,
+                username = authPreferences.username,
+                refreshToken = authPreferences.refreshToken,
                 rememberSession = true,
             )
         }
@@ -3841,13 +3880,13 @@ class SteamService : Service(), IChallengeUrlChanged {
         Timber.i("Logged onto Steam: ${callback.result}")
 
         if (userSteamId?.isValid == true) {
-            if (PrefManager.steamUserAccountId != userSteamId!!.accountID.toInt()) {
-                PrefManager.steamUserAccountId = userSteamId!!.accountID.toInt()
+            if (authPreferences.steamUserAccountId != userSteamId!!.accountID.toInt()) {
+                authPreferences.steamUserAccountId = userSteamId!!.accountID.toInt()
                 Timber.d("Saving logged in Steam accountID ${userSteamId!!.accountID.toInt()}")
             }
             val steamId64 = userSteamId!!.convertToUInt64()
-            if (PrefManager.steamUserSteamId64 != steamId64) {
-                PrefManager.steamUserSteamId64 = steamId64
+            if (authPreferences.steamUserSteamId64 != steamId64) {
+                authPreferences.steamUserSteamId64 = steamId64
                 Timber.d("Saving logged in Steam ID64 $steamId64")
             }
         }
@@ -3861,8 +3900,8 @@ class SteamService : Service(), IChallengeUrlChanged {
             EResult.OK -> {
                 // save the current cellid somewhere. if we lose our saved server list, we can use this when retrieving
                 // servers from the Steam Directory.
-                if (!PrefManager.cellIdManuallySet) {
-                    PrefManager.cellId = callback.cellID
+                if (!authPreferences.cellIdManuallySet) {
+                    authPreferences.cellId = callback.cellID
                 }
 
                 // retrieve persona data of logged in user
@@ -3900,7 +3939,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                 picsGetProductInfoJob = continuousPICSGetProductInfo()
 
                 // Tell steam we're online, this allows friends to update.
-                _steamFriends?.setPersonaState(PrefManager.personaState)
+                _steamFriends?.setPersonaState(authPreferences.personaState)
 
                 val activeGame = ActiveGameRegistry.get()
                 if (activeGame != null) {
@@ -3926,7 +3965,7 @@ class SteamService : Service(), IChallengeUrlChanged {
 
             else -> {
                 if (shouldClearUserDataForLoggedOnFailure(callback.result)) {
-                    PrefManager.clearSteamSessionPreferences()
+                    scope.launch { authPreferences.clearSteamSession() }
                 }
 
                 _loginResult = LoginResult.Failed
@@ -3935,12 +3974,12 @@ class SteamService : Service(), IChallengeUrlChanged {
             }
         }
 
-        val event = SteamEvent.LogonEnded(PrefManager.username, _loginResult)
+        val event = SteamEvent.LogonEnded(authPreferences.username, _loginResult)
         PluviaApp.events.emit(event)
     }
 
     private suspend fun resumePendingWorkshopDownloads() {
-        if (PrefManager.downloadOnWifiOnly && !hasWifiOrEthernet) {
+        if (downloadPreferences.downloadOnWifiOnly && !hasWifiOrEthernet) {
             Timber.i("Skipping pending workshop downloads — WiFi-only mode and no WiFi")
             return
         }
@@ -4155,9 +4194,9 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val playerName = callback.playerName
 
                 // When connected, callback may return Offline due to missing Status flag in request.
-                // Trust PrefManager.personaState (user's chosen state) in that case.
+                // Trust authPreferences.personaState (user's chosen state) in that case.
                 val state = if (callback.personaState == EPersonaState.Offline && isConnected) {
-                    PrefManager.personaState
+                    authPreferences.personaState
                 } else {
                     callback.personaState
                 }
@@ -4178,8 +4217,8 @@ class SteamService : Service(), IChallengeUrlChanged {
                 }
 
                 // Cache local persona
-                PrefManager.steamUserAvatarHash = avatarHash
-                PrefManager.steamUserName = playerName
+                authPreferences.steamUserAvatarHash = avatarHash
+                authPreferences.steamUserName = playerName
 
                 val event = SteamEvent.PersonaStateReceived(localPersona.value)
                 PluviaApp.events.emit(event)
@@ -4374,18 +4413,18 @@ class SteamService : Service(), IChallengeUrlChanged {
 
             try {
                 val changesSince = _steamApps!!.picsGetChangesSince(
-                    lastChangeNumber = PrefManager.lastPICSChangeNumber,
+                    lastChangeNumber = authPreferences.lastPICSChangeNumber,
                     sendAppChangeList = true,
                     sendPackageChangelist = true,
                 ).await()
 
-                if (PrefManager.lastPICSChangeNumber == changesSince.currentChangeNumber) {
+                if (authPreferences.lastPICSChangeNumber == changesSince.currentChangeNumber) {
                     Timber.w("Change number was the same as last change number, skipping")
                     return@launch
                 }
 
                 // Set our last change number
-                PrefManager.lastPICSChangeNumber = changesSince.currentChangeNumber
+                authPreferences.lastPICSChangeNumber = changesSince.currentChangeNumber
 
                 Timber.d(
                     "picsGetChangesSince:" +

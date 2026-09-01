@@ -2,7 +2,8 @@ package app.gamenative.service.gog
 
 import android.content.Context
 import android.net.Uri
-import app.gamenative.PrefManager
+import app.gamenative.PluviaApp
+import app.gamenative.preferences.PreferencesEntryPoint
 import java.io.File
 import java.nio.file.Paths
 import java.security.SecureRandom
@@ -46,7 +47,7 @@ object GOGConstants {
 
     /**
      * GOG language codes per container language: container name first (for manifests that use "German" etc.),
-     * then GOG codes. Keys match [PrefManager.containerLanguage]. Unknown languages fall back to English.
+     * then GOG codes. Keys match [app.gamenative.preferences.ContainerPreferences.containerLanguage]. Unknown languages fall back to English.
      */
     internal val CONTAINER_LANGUAGE_TO_GOG_CODES: Map<String, List<String>> = mapOf(
         "arabic" to listOf("arabic", "ar"),
@@ -82,7 +83,7 @@ object GOGConstants {
 
     /**
      * Maps container language name (e.g. "english", "german") to an ordered list of GOG manifest language codes
-     * (primary first, then fallbacks). Uses the same names as [PrefManager.containerLanguage].
+     * (primary first, then fallbacks). Uses the same names as [app.gamenative.preferences.ContainerPreferences.containerLanguage].
      * Returns English codes (CONTAINER_LANGUAGE_TO_GOG_CODES.getValue(GOG_FALLBACK_DOWNLOAD_LANGUAGE)) for unknown languages.
      */
     fun containerLanguageToGogCodes(containerLanguage: String): List<String> =
@@ -125,7 +126,11 @@ object GOGConstants {
      */
     val externalGOGGamesPath: String
         get() {
-            val path = Paths.get(PrefManager.externalStoragePath, "GOG", "games", "common").toString()
+            val context = appContext ?: PluviaApp.instance
+            val externalStoragePath = runCatching {
+                PreferencesEntryPoint.get(context).downloadPreferences().externalStoragePath
+            }.getOrDefault("")
+            val path = Paths.get(externalStoragePath, "GOG", "games", "common").toString()
             // Ensure directory exists for StatFs
             File(path).mkdirs()
             return path
@@ -133,7 +138,11 @@ object GOGConstants {
 
     val defaultGOGGamesPath: String
         get() {
-            return if (PrefManager.useExternalStorage && File(PrefManager.externalStoragePath).exists()) {
+            val context = appContext ?: PluviaApp.instance
+            val downloadPreferences = runCatching {
+                PreferencesEntryPoint.get(context).downloadPreferences()
+            }.getOrNull()
+            return if (downloadPreferences?.useExternalStorage == true && File(downloadPreferences.externalStoragePath).exists()) {
                 Timber.i("GOG using external storage: $externalGOGGamesPath")
                 externalGOGGamesPath
             } else {

@@ -13,7 +13,9 @@ import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnified
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.types.SteamID
 import android.content.Context
-import app.gamenative.PrefManager
+import app.gamenative.preferences.ContainerPreferences
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.DownloadInfo
 import app.gamenative.data.GameSource
@@ -72,6 +74,10 @@ import java.util.concurrent.atomic.AtomicInteger
 object WorkshopManager {
 
     private const val TAG = "WorkshopManager"
+    private val downloadPreferences: DownloadPreferences?
+        get() = runCatching { SteamService.instance?.let { PreferencesEntryPoint.get(it).downloadPreferences() } }.getOrNull()
+    private val containerPreferences: ContainerPreferences?
+        get() = runCatching { SteamService.instance?.let { PreferencesEntryPoint.get(it).containerPreferences() } }.getOrNull()
     private const val RAIN_WORLD_APP_ID = 312520
     private const val RAIN_WORLD_MODS_PATH = "RainWorld_Data/StreamingAssets/mods"
     private const val RAIN_WORLD_ENABLED_MODS_PATH = "RainWorld_Data/StreamingAssets/enabledMods.txt"
@@ -902,7 +908,7 @@ object WorkshopManager {
         val completedCount = AtomicInteger(0)
 
         // Concurrent download limit based on speed setting
-        val concurrentLimit = when (PrefManager.downloadSpeed) {
+        val concurrentLimit = when (downloadPreferences?.downloadSpeed ?: 24) {
             8 -> 1
             16 -> 2
             24 -> 3
@@ -1187,7 +1193,8 @@ object WorkshopManager {
     private fun computeDownloadThreads(): Pair<Int, Int> {
         var downloadRatio = 1.5
         var decompressRatio = 0.5
-        when (PrefManager.downloadSpeed) {
+        val speed = downloadPreferences?.downloadSpeed ?: 24
+        when (speed) {
             8 -> { downloadRatio = 0.6; decompressRatio = 0.2 }
             16 -> { downloadRatio = 1.2; decompressRatio = 0.4 }
             24 -> { downloadRatio = 1.5; decompressRatio = 0.5 }
@@ -1197,7 +1204,7 @@ object WorkshopManager {
         val maxDownloads = (cpuCores * downloadRatio).toInt().coerceAtLeast(1)
         val maxDecompress = (cpuCores * decompressRatio).toInt().coerceAtLeast(1)
         Timber.tag(TAG).d(
-            "Download speed setting=${PrefManager.downloadSpeed}, cpuCores=$cpuCores, " +
+            "Download speed setting=$speed, cpuCores=$cpuCores, " +
                 "maxDownloads=$maxDownloads, maxDecompress=$maxDecompress"
         )
         return maxDownloads to maxDecompress
@@ -2579,7 +2586,7 @@ object WorkshopManager {
         gameName: String = "",
         workshopModPath: String = "",
         compatibilityOverride: WorkshopCompatibilityOverride? = null,
-        bionicSteam: Boolean = PrefManager.launchBionicSteam,
+        bionicSteam: Boolean = containerPreferences?.launchBionicSteam ?: false,
     ) {
         val appId = workshopContentDir.name.toIntOrNull() ?: -1
         val isSlayTheSpire = appId == SlayTheSpireModTheSpireCompatibility.APP_ID
@@ -4094,7 +4101,7 @@ object WorkshopManager {
 
         val containerId = "STEAM_$appId"
         var modPathOverride = ""
-        var bionicSteam = PrefManager.launchBionicSteam
+        var bionicSteam = PreferencesEntryPoint.get(context).containerPreferences().launchBionicSteam
         try {
             val container = ContainerUtils.getContainer(context, containerId)
             modPathOverride = container.getExtra("workshopModPath", "")

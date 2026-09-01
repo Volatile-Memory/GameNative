@@ -1,7 +1,8 @@
 package app.gamenative.service.epic
 
 import android.net.Uri
-import app.gamenative.PrefManager
+import app.gamenative.PluviaApp
+import app.gamenative.preferences.PreferencesEntryPoint
 import java.io.File
 import java.nio.file.Paths
 import java.security.SecureRandom
@@ -12,12 +13,12 @@ import timber.log.Timber
  */
 object EpicConstants {
 
-    /** Container language value for "required only" (no optional language tags). Same key as [PrefManager.containerLanguage]. */
+    /** Container language value for "required only" (no optional language tags). Same key as [app.gamenative.preferences.ContainerPreferences.containerLanguage]. */
     const val EPIC_FALLBACK_CONTAINER_LANGUAGE = "english"
 
     /**
      * Maps container language (same values as GOG/Steam container language) to Epic manifest install tag names.
-     * Used to download required + selected language files. Keys match [PrefManager.containerLanguage].
+     * Used to download required + selected language files. Keys match [app.gamenative.preferences.ContainerPreferences.containerLanguage].
      * Each value lists tag names/codes that may appear in manifests (e.g. "German" or "de-DE"). Same codes as GOG where applicable.
      */
     internal val CONTAINER_LANGUAGE_TO_EPIC_INSTALL_TAGS: Map<String, List<String>> = mapOf(
@@ -118,8 +119,12 @@ object EpicConstants {
      * External Epic games installation path
      * {externalStoragePath}/Epic/games/
      */
-    fun externalEpicGamesPath(): String {
-        val path = Paths.get(PrefManager.externalStoragePath, "Epic", "games").toString()
+    fun externalEpicGamesPath(context: android.content.Context? = null): String {
+        val targetContext = context ?: PluviaApp.instance
+        val externalStoragePath = runCatching {
+            PreferencesEntryPoint.get(targetContext).downloadPreferences().externalStoragePath
+        }.getOrDefault("")
+        val path = Paths.get(externalStoragePath, "Epic", "games").toString()
         // Ensure directory exists for StatFs
         File(path).mkdirs()
         return path
@@ -129,8 +134,11 @@ object EpicConstants {
      * Default Epic games installation path - uses external storage if available
      */
     fun defaultEpicGamesPath(context: android.content.Context): String {
-        return if (PrefManager.useExternalStorage && File(PrefManager.externalStoragePath).exists()) {
-            val path = externalEpicGamesPath()
+        val downloadPreferences = runCatching {
+            PreferencesEntryPoint.get(context).downloadPreferences()
+        }.getOrNull()
+        return if (downloadPreferences?.useExternalStorage == true && File(downloadPreferences.externalStoragePath).exists()) {
+            val path = externalEpicGamesPath(context)
             Timber.i("Epic using external storage: $path")
             path
         } else {

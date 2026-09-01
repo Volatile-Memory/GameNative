@@ -1,7 +1,7 @@
 package app.gamenative.service
 
 import androidx.room.withTransaction
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.PostSyncInfo
 import app.gamenative.data.SaveFilePattern
@@ -493,7 +493,7 @@ object SteamAutoCloud {
                 val filesDownloaded = AtomicInteger(0)
                 val bytesDownloaded = AtomicLong(0L)
                 val totalFiles = filesToDownload.size
-                val parallelism = PrefManager.downloadSpeed.coerceAtLeast(1)
+                val parallelism = PreferencesEntryPoint.get(steamInstance).downloadPreferences().downloadSpeed.coerceAtLeast(1)
                 // A new client (and its Dispatcher thread pool) is created intentionally per sync,
                 // since cloud saves are downloaded at most once per game launch.
                 val downloadHttpClient = Net.httpForParallelDownloads(parallelism)

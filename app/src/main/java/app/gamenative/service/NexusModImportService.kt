@@ -15,7 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import app.gamenative.MainActivity
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.ModInstall
 import app.gamenative.data.ModInstallSource
@@ -499,7 +499,7 @@ class NexusModImportService : Service() {
             intent,
             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val smallIconRes = if (PrefManager.useAltNotificationIcon) {
+        val smallIconRes = if (PreferencesEntryPoint.get(this).generalPreferences().useAltNotificationIcon) {
             R.drawable.ic_notification_alt
         } else {
             R.drawable.ic_notification

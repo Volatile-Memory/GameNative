@@ -14,6 +14,7 @@ import app.gamenative.events.AndroidEvent
 import app.gamenative.PluviaApp
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.service.NotificationHelper
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.utils.ContainerUtils
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
@@ -217,7 +218,10 @@ class GOGService : Service() {
         private fun getPartialInstallPaths(): Set<String> {
             val roots = buildList {
                 add(GOGConstants.internalGOGGamesPath)
-                if (app.gamenative.PrefManager.externalStoragePath.isNotBlank()) {
+                val externalStoragePath = runCatching {
+                    PreferencesEntryPoint.get(PluviaApp.instance).downloadPreferences().externalStoragePath
+                }.getOrDefault("")
+                if (externalStoragePath.isNotBlank()) {
                     add(GOGConstants.externalGOGGamesPath)
                 }
             }.distinct()

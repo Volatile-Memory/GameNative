@@ -1,7 +1,9 @@
 package app.gamenative.service.epic
 
 import android.content.Context
-import app.gamenative.PrefManager
+import app.gamenative.PluviaApp
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.data.EpicGame
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
@@ -26,6 +28,7 @@ import timber.log.Timber
 @Singleton
 class EpicManager @Inject constructor(
     private val epicGameDao: EpicGameDao,
+    private val downloadPreferences: DownloadPreferences? = null,
 ) {
 
     private val REFRESH_BATCH_SIZE = 10
@@ -38,7 +41,10 @@ class EpicManager @Inject constructor(
     private val httpClient = Net.http
 
     private fun getCdnClient(): okhttp3.OkHttpClient {
-        val parallelDownloads = PrefManager.downloadSpeed.coerceAtLeast(1)
+        val prefs = downloadPreferences ?: runCatching {
+            PreferencesEntryPoint.get(PluviaApp.instance).downloadPreferences()
+        }.getOrNull()
+        val parallelDownloads = prefs?.downloadSpeed?.coerceAtLeast(1) ?: 1
         return Net.httpForParallelDownloads(parallelDownloads)
     }
 

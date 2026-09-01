@@ -11,12 +11,16 @@ import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import app.gamenative.MainActivity
 import app.gamenative.data.DownloadInfo
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
-class NotificationHelper @Inject constructor(@ApplicationContext private val context: Context) {
+class NotificationHelper @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val generalPreferences: GeneralPreferences = PreferencesEntryPoint.get(context).generalPreferences(),
+) {
 
     companion object {
         private const val CHANNEL_ID = "pluvia_foreground_service"
@@ -189,7 +193,7 @@ class NotificationHelper @Inject constructor(@ApplicationContext private val con
             PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val smallIconRes = if (PrefManager.useAltNotificationIcon) {
+        val smallIconRes = if (generalPreferences.useAltNotificationIcon) {
             R.drawable.ic_notification_alt
         } else {
             R.drawable.ic_notification

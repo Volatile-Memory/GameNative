@@ -1,12 +1,7 @@
 package app.gamenative.service.gog
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.emptyPreferences
-import app.gamenative.PrefManager
 import java.io.File
-import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -17,15 +12,6 @@ import org.mockito.Mockito
 class GOGConstantsTest {
     @Before
     fun setUp() {
-        // Create mock DataStore that returns empty preferences
-        val mockDataStore = Mockito.mock(DataStore::class.java) as DataStore<Preferences>
-        Mockito.`when`(mockDataStore.data).thenReturn(flowOf(emptyPreferences()))
-
-        // Use reflection to set dataStore without calling init()
-        val dataStoreField = PrefManager::class.java.getDeclaredField("dataStore")
-        dataStoreField.isAccessible = true
-        dataStoreField.set(PrefManager, mockDataStore)
-
         // Mock context for GOGConstants
         val context = Mockito.mock(Context::class.java)
         val filesDir = File("/tmp/internal")
@@ -34,7 +20,6 @@ class GOGConstantsTest {
         Mockito.`when`(context.dataDir).thenReturn(filesDir)
         Mockito.`when`(context.applicationContext).thenReturn(context)
 
-        PrefManager.init(context)
         GOGConstants.init(context)
     }
 

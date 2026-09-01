@@ -2,7 +2,7 @@ package app.gamenative.service
 
 import android.content.Context
 import android.os.Environment
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.utils.StorageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,18 +46,19 @@ object DownloadService {
             .flatMap { dir -> listOfNotNull(dir.absolutePath, StorageUtils.publicInstallRoot(dir)?.absolutePath) }
             .distinct()
 
-        migrateExternalStoragePath()
+        migrateExternalStoragePath(context)
     }
 
     // Android/data paths pay a ~1000x FUSE metadata penalty (MediaProvider disables kernel
     // caching there); repoint the install pref at the public root so new installs avoid it
-    private fun migrateExternalStoragePath() {
-        val pref = PrefManager.externalStoragePath
+    private fun migrateExternalStoragePath(context: Context) {
+        val downloadPreferences = PreferencesEntryPoint.get(context).downloadPreferences()
+        val pref = downloadPreferences.externalStoragePath
         if (pref.isBlank() || !pref.contains("/Android/data/")) return
         val public = StorageUtils.publicInstallRoot(File(pref)) ?: return
         if (StorageUtils.ensureInstallRoot(public)) {
             Timber.i("Migrating external install root from $pref to ${public.absolutePath}")
-            PrefManager.externalStoragePath = public.absolutePath
+            downloadPreferences.externalStoragePath = public.absolutePath
         }
     }
 

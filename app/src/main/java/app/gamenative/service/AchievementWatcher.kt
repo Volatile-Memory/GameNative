@@ -11,7 +11,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import org.json.JSONObject
 import timber.log.Timber
@@ -25,6 +26,7 @@ class AchievementWatcher(
     private val configDirectory: String?,
     context: Context
 ) {
+    private val generalPreferences: GeneralPreferences = PreferencesEntryPoint.get(context).generalPreferences()
     private val observers = mutableListOf<FileObserver>()
     private val notifiedNames = mutableSetOf<String>()
     private val uploadedNames = mutableSetOf<String>()
@@ -98,10 +100,10 @@ class AchievementWatcher(
                 val displayName = displayNameMap[name] ?: name
                 val iconUrl = iconUrlMap[name]
 
-                if (PrefManager.achievementShowNotification) {
+                if (generalPreferences.achievementShowNotification) {
                     AchievementNotificationManager.show(displayName, iconUrl)
                 }
-                if (PrefManager.achievementPlaySound) {
+                if (generalPreferences.achievementPlaySound) {
                     playUnlockSound()
                 }
                 Timber.tag("achievements").i("Achievement unlocked: $name ($displayName)")

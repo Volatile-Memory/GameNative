@@ -17,6 +17,7 @@ import app.gamenative.events.AndroidEvent
 import app.gamenative.PluviaApp
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.service.NotificationHelper
+import app.gamenative.preferences.PreferencesEntryPoint
 import com.winlator.container.Container
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
@@ -197,8 +198,8 @@ class EpicService : Service() {
         private fun getPartialInstallPaths(context: Context): Set<String> {
             val roots = buildList {
                 add(EpicConstants.internalEpicGamesPath(context))
-                if (app.gamenative.PrefManager.externalStoragePath.isNotBlank()) {
-                    add(EpicConstants.externalEpicGamesPath())
+                if (PreferencesEntryPoint.get(context).downloadPreferences().externalStoragePath.isNotBlank()) {
+                    add(EpicConstants.externalEpicGamesPath(context))
                 }
             }.distinct()
 
