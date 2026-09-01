@@ -1,11 +1,10 @@
 package app.gamenative.utils
 
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
 import io.mockk.every
 import io.mockk.just
-import io.mockk.mockkObject
+import io.mockk.mockk
 import io.mockk.runs
-import io.mockk.unmockkObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -23,17 +22,19 @@ class HltbCacheTest {
         gameId = 42,
     )
 
+    private lateinit var generalPreferences: GeneralPreferences
+
     @Before
     fun setUp() {
-        mockkObject(PrefManager)
-        every { PrefManager.hltbCache } returns "{}"
-        every { PrefManager.hltbCache = any() } just runs
+        generalPreferences = mockk<GeneralPreferences>(relaxed = true)
+        every { generalPreferences.hltbCache } returns "{}"
+        every { generalPreferences.hltbCache = any() } just runs
         HltbCache.reset()
     }
 
     @After
     fun tearDown() {
-        unmockkObject(PrefManager)
+        HltbCache.reset()
     }
 
     @Test

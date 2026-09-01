@@ -2,9 +2,10 @@ package app.gamenative.utils
 
 import android.content.Context
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.GameSource
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.data.LibraryItem
 import app.gamenative.data.SteamApp
 import app.gamenative.data.AppInfo
@@ -54,6 +55,9 @@ object ContainerStorageManager {
         fun amazonGameDao(): AmazonGameDao
     }
 
+    @Volatile
+    var downloadPreferences: DownloadPreferences? = null
+
     enum class Status {
         READY,
         NO_CONTAINER,
@@ -95,8 +99,9 @@ object ContainerStorageManager {
     }
 
     suspend fun getExternalVolumeInfo(context: Context): VolumeInfo? = withContext(Dispatchers.IO) {
-        if (!PrefManager.useExternalStorage) return@withContext null
-        val externalPath = PrefManager.externalStoragePath
+        val prefs = context.preferencesEntryPoint().downloadPreferences().also { downloadPreferences = it }
+        if (!prefs.useExternalStorage) return@withContext null
+        val externalPath = prefs.externalStoragePath
         if (externalPath.isBlank() || !File(externalPath).isDirectory) return@withContext null
 
         try {
@@ -198,10 +203,11 @@ object ContainerStorageManager {
         entries
     }
 
-    fun isExternalStorageConfigured(): Boolean {
-        return PrefManager.useExternalStorage &&
-            PrefManager.externalStoragePath.isNotBlank() &&
-            File(PrefManager.externalStoragePath).exists()
+    fun isExternalStorageConfigured(context: Context? = null, prefs: DownloadPreferences? = null): Boolean {
+        val targetPrefs = prefs ?: context?.preferencesEntryPoint()?.downloadPreferences() ?: downloadPreferences
+        return targetPrefs?.useExternalStorage == true &&
+            targetPrefs.externalStoragePath.isNotBlank() &&
+            File(targetPrefs.externalStoragePath).exists()
     }
 
     fun getStorageLocation(context: Context, entry: Entry): StorageLocation {
@@ -212,7 +218,7 @@ object ContainerStorageManager {
 
     fun canMoveToExternal(context: Context, entry: Entry): Boolean {
         return canMoveGame(entry) &&
-            isExternalStorageConfigured() &&
+            isExternalStorageConfigured(context) &&
             getStorageLocation(context, entry) == StorageLocation.INTERNAL
     }
 
@@ -234,7 +240,7 @@ object ContainerStorageManager {
         if (!canMoveGame(entry)) {
             return@withContext Result.failure(IllegalArgumentException("This game cannot be moved"))
         }
-        if (target == MoveTarget.EXTERNAL && !isExternalStorageConfigured()) {
+        if (target == MoveTarget.EXTERNAL && !isExternalStorageConfigured(context)) {
             return@withContext Result.failure(IllegalStateException("External storage is not enabled"))
         }
 
@@ -802,10 +808,11 @@ object ContainerStorageManager {
             return StorageLocation.INTERNAL
         }
 
+        val prefs = context.preferencesEntryPoint().downloadPreferences().also { downloadPreferences = it }
         val externalRoots = buildList {
             when (gameSource) {
                 GameSource.STEAM -> {
-                    if (PrefManager.externalStoragePath.isNotBlank()) {
+                    if (prefs.externalStoragePath.isNotBlank()) {
                         add(SteamService.externalAppInstallPath)
                     }
                     addAll(
@@ -815,9 +822,9 @@ object ContainerStorageManager {
                     )
                 }
 
-                GameSource.GOG -> if (PrefManager.externalStoragePath.isNotBlank()) add(GOGConstants.externalGOGGamesPath)
-                GameSource.EPIC -> if (PrefManager.externalStoragePath.isNotBlank()) add(EpicConstants.externalEpicGamesPath())
-                GameSource.AMAZON -> if (PrefManager.externalStoragePath.isNotBlank()) add(AmazonConstants.externalAmazonGamesPath())
+                GameSource.GOG -> if (prefs.externalStoragePath.isNotBlank()) add(GOGConstants.externalGOGGamesPath)
+                GameSource.EPIC -> if (prefs.externalStoragePath.isNotBlank()) add(EpicConstants.externalEpicGamesPath())
+                GameSource.AMAZON -> if (prefs.externalStoragePath.isNotBlank()) add(AmazonConstants.externalAmazonGamesPath())
                 GameSource.CUSTOM_GAME -> Unit
             }
 

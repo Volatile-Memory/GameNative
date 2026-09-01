@@ -2,7 +2,6 @@ package app.gamenative.mods
 
 import android.content.Context
 import app.gamenative.NetworkMonitor
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.ModInstall
 import app.gamenative.data.ModInstallSource
@@ -13,6 +12,9 @@ import app.gamenative.data.ModPlacementRecipe
 import app.gamenative.data.ModTargetRoot
 import app.gamenative.db.PluviaDatabase
 import app.gamenative.db.dao.ModDao
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -95,17 +97,29 @@ object NexusModManager {
 
     private val downloadClient = OkHttpClient()
 
-    fun dao(context: Context): ModDao =
-        EntryPointAccessors.fromApplication(
+    @Volatile
+    var generalPreferences: GeneralPreferences? = null
+
+    @Volatile
+    var downloadPreferences: DownloadPreferences? = null
+
+    fun dao(context: Context): ModDao {
+        generalPreferences = context.preferencesEntryPoint().generalPreferences()
+        downloadPreferences = context.preferencesEntryPoint().downloadPreferences()
+        return EntryPointAccessors.fromApplication(
             context.applicationContext,
             ModDaoEntryPoint::class.java,
         ).modDao()
+    }
 
-    internal fun database(context: Context): PluviaDatabase =
-        EntryPointAccessors.fromApplication(
+    internal fun database(context: Context): PluviaDatabase {
+        generalPreferences = context.preferencesEntryPoint().generalPreferences()
+        downloadPreferences = context.preferencesEntryPoint().downloadPreferences()
+        return EntryPointAccessors.fromApplication(
             context.applicationContext,
             ModDaoEntryPoint::class.java,
         ).database()
+    }
 
     fun cacheRoot(context: Context, appId: String): File =
         File(context.filesDir, "mods/$appId/nexus")
@@ -609,8 +623,14 @@ object NexusModManager {
         restoreSkipped + removeSkipped
     }
 
-    fun lastPlacementRecipesForApp(appId: String, installId: String): List<ModPlacementRecipe> {
-        val root = runCatching { JSONObject(PrefManager.nexusLastPlacementJson) }.getOrElse { JSONObject() }
+    fun lastPlacementRecipesForApp(
+        appId: String,
+        installId: String,
+        prefs: GeneralPreferences? = generalPreferences,
+    ): List<ModPlacementRecipe> {
+        val targetPrefs = prefs ?: generalPreferences
+        val raw = targetPrefs?.nexusLastPlacementJson ?: ""
+        val root = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
         val recipes = root.optJSONArray(appId) ?: return emptyList()
         return buildList {
             for (index in 0 until recipes.length()) {
@@ -631,12 +651,18 @@ object NexusModManager {
         }
     }
 
-    fun saveLastPlacementForApp(appId: String, recipes: List<ModPlacementRecipe>) {
+    fun saveLastPlacementForApp(
+        appId: String,
+        recipes: List<ModPlacementRecipe>,
+        prefs: GeneralPreferences? = generalPreferences,
+    ) {
+        val targetPrefs = prefs ?: generalPreferences
         val enabledRecipes = recipes.filter { it.enabled }
-        val root = runCatching { JSONObject(PrefManager.nexusLastPlacementJson) }.getOrElse { JSONObject() }
+        val raw = targetPrefs?.nexusLastPlacementJson ?: ""
+        val root = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
         if (enabledRecipes.isEmpty()) {
             root.remove(appId)
-            PrefManager.nexusLastPlacementJson = root.toString()
+            targetPrefs?.nexusLastPlacementJson = root.toString()
             return
         }
         val savedRecipes = JSONArray()
@@ -653,7 +679,7 @@ object NexusModManager {
             )
         }
         root.put(appId, savedRecipes)
-        PrefManager.nexusLastPlacementJson = root.toString()
+        targetPrefs?.nexusLastPlacementJson = root.toString()
     }
 
     private fun samePlacementRecipes(
@@ -1209,8 +1235,9 @@ object NexusModManager {
         )
     }
 
-    private fun ensureDownloadNetworkAllowed() {
-        if (PrefManager.downloadOnWifiOnly && !NetworkMonitor.hasWifiOrEthernet.value) {
+    private fun ensureDownloadNetworkAllowed(prefs: DownloadPreferences? = downloadPreferences) {
+        val downloadPrefs = prefs ?: downloadPreferences
+        if (downloadPrefs?.downloadOnWifiOnly == true && !NetworkMonitor.hasWifiOrEthernet.value) {
             throw ModImportPausedException("Download paused because Wi-Fi/LAN-only downloads are enabled")
         }
     }

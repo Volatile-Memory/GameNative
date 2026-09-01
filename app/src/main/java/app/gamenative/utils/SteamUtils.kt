@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.Settings
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.data.DepotInfo
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.ManifestInfo
@@ -14,6 +13,8 @@ import app.gamenative.enums.Marker
 import app.gamenative.enums.SpecialGameSaveMapping
 import app.gamenative.enums.SteamRealm
 import app.gamenative.events.SteamEvent
+import app.gamenative.preferences.AuthPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.service.SteamService
 import app.gamenative.service.SteamService.Companion.getAppDirName
 import app.gamenative.service.SteamService.Companion.getAppInfoOf
@@ -50,6 +51,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.io.path.setLastModifiedTime
 
 object SteamUtils {
+    @Volatile
+    var preferences: AuthPreferences? = null
+
     internal data class ColdClientLaunchConfig(
         val executablePath: String,
         val exeCommandLine: String,
@@ -60,8 +64,12 @@ object SteamUtils {
      * True when a stored Steam session exists (offline-launch gate).
      * Matches GOG/Epic/Amazon AuthManager.hasStoredCredentials convention.
      */
-    fun hasStoredCredentials(): Boolean =
-        PrefManager.username.isNotEmpty() && PrefManager.refreshToken.isNotEmpty()
+    fun hasStoredCredentials(prefs: AuthPreferences? = preferences): Boolean {
+        val target = prefs ?: preferences
+        val username = target?.username ?: ""
+        val refreshToken = target?.refreshToken ?: ""
+        return username.isNotEmpty() && refreshToken.isNotEmpty()
+    }
 
     // fall back at the same moment the banner would offer "Continue Offline".
     const val STEAM_LOGIN_AWAIT_MS: Long = TIMEOUT_SHOW_OFFLINE_OPTION_SECONDS * 1000L
@@ -547,17 +555,21 @@ object SteamUtils {
         )
     }
 
-    fun autoLoginUserChanges(imageFs: ImageFs) {
+    fun autoLoginUserChanges(imageFs: ImageFs, prefs: AuthPreferences? = preferences) {
+        val target = prefs ?: preferences
         // userSteamId is null on offline launch — fall back to persisted ID, else writer puts "null" in vdf
         val steamId64 = SteamService.userSteamId?.convertToUInt64()?.toString()
-            ?: PrefManager.steamUserSteamId64.takeIf { it != 0L }?.toString()
+            ?: target?.steamUserSteamId64?.takeIf { it != 0L }?.toString()
             ?: "0"
+        val username = target?.username ?: ""
+        val refreshToken = target?.refreshToken ?: ""
+        val accessToken = target?.accessToken ?: ""
         val vdfFileText = SteamService.getLoginUsersVdfOauth(
             steamId64 = steamId64,
-            account = PrefManager.username,
-            refreshToken = PrefManager.refreshToken,
-            accessToken = PrefManager.accessToken,      // may be blank
-            personaName = SteamService.instance?.localPersona?.value?.name ?: PrefManager.username
+            account = username,
+            refreshToken = refreshToken,
+            accessToken = accessToken,      // may be blank
+            personaName = SteamService.instance?.localPersona?.value?.name ?: username
         )
         val steamConfigDir = File(imageFs.wineprefix, "drive_c/Program Files (x86)/Steam/config")
         try {
@@ -568,7 +580,7 @@ object SteamUtils {
             val steamExe = "$steamRoot\\steam.exe"
             val hkcu = "Software\\Valve\\Steam"
             WineRegistryEditor(userRegFile).use { reg ->
-                reg.setStringValue("Software\\Valve\\Steam", "AutoLoginUser", PrefManager.username)
+                reg.setStringValue("Software\\Valve\\Steam", "AutoLoginUser", username)
                 reg.setStringValue(hkcu, "SteamExe", steamExe)
                 reg.setStringValue(hkcu, "SteamPath", steamRoot)
                 reg.setStringValue(hkcu, "InstallPath", steamRoot)
@@ -1047,10 +1059,11 @@ object SteamUtils {
      * This function copies all files from the GSE saves location to the proper Steam userdata
      * location and then removes the original GSE directory to complete the migration.
      */
-    fun migrateGSESavesToSteamUserdata(context: Context, appId: Int) {
+    fun migrateGSESavesToSteamUserdata(context: Context, appId: Int, prefs: AuthPreferences? = preferences) {
+        val target = prefs ?: context.preferencesEntryPoint().authPreferences().also { preferences = it }
         val imageFs = ImageFs.find(context)
         val accountId = SteamService.userSteamId?.accountID?.toInt()
-            ?: PrefManager.steamUserAccountId.takeIf { it != 0 }
+            ?: target.steamUserAccountId.takeIf { it != 0 }
 
         if (accountId == null) {
             Timber.tag("migrateGSESavesToSteamUserdata").w("Cannot migrate GSE saves: no Steam account ID available")
@@ -1162,12 +1175,13 @@ object SteamUtils {
         }
 
         val configsIni = settingsDir.resolve("configs.user.ini")
-        val accountName   = SteamService.instance?.localPersona?.value?.name ?: PrefManager.username
+        val targetPrefs = context.preferencesEntryPoint().authPreferences().also { preferences = it }
+        val accountName   = SteamService.instance?.localPersona?.value?.name ?: targetPrefs.username
         val accountSteamId = SteamService.userSteamId?.convertToUInt64()?.toString()
-            ?: PrefManager.steamUserSteamId64.takeIf { it != 0L }?.toString()
+            ?: targetPrefs.steamUserSteamId64.takeIf { it != 0L }?.toString()
             ?: "0"
         val accountId = SteamService.userSteamId?.accountID
-            ?: PrefManager.steamUserAccountId.takeIf { it != 0 }?.toLong()
+            ?: targetPrefs.steamUserAccountId.takeIf { it != 0 }?.toLong()
             ?: 0L
         val container = ContainerUtils.getOrCreateContainer(context, appId)
         val language = runCatching {
@@ -1583,14 +1597,14 @@ object SteamUtils {
         }
     }
 
-    fun getSteamId64(): Long? {
+    fun getSteamId64(prefs: AuthPreferences? = preferences): Long? {
         return SteamService.userSteamId?.convertToUInt64()?.toLong()
-            ?: PrefManager.steamUserSteamId64.takeIf { it != 0L }
+            ?: (prefs ?: preferences)?.steamUserSteamId64?.takeIf { it != 0L }
     }
 
-    fun getSteam3AccountId(): Long? {
+    fun getSteam3AccountId(prefs: AuthPreferences? = preferences): Long? {
         return SteamService.userSteamId?.accountID?.toLong()
-            ?: PrefManager.steamUserAccountId.takeIf { it != 0 }?.toLong()
+            ?: (prefs ?: preferences)?.steamUserAccountId?.takeIf { it != 0 }?.toLong()
     }
 
     /**
@@ -1602,13 +1616,18 @@ object SteamUtils {
      * - {64BitSteamID} - Replaced with the user's 64-bit Steam ID
      * - {Steam3AccountID} - Replaced with the user's Steam3 account ID
      */
-    fun ensureSaveLocationsForGames(context: Context, steamAppId: Int, container: Container) {
+    fun ensureSaveLocationsForGames(
+        context: Context,
+        steamAppId: Int,
+        container: Container,
+        prefs: AuthPreferences? = preferences,
+    ) {
         val mapping = SpecialGameSaveMapping.registry.find { it.appId == steamAppId } ?: return
 
         try {
-            // safe accessors fall back to PrefManager — match siblings (SteamAutoCloud, SaveFilePattern)
-            val accountId = getSteam3AccountId() ?: 0L
-            val steamId64 = getSteamId64()?.toString() ?: "0"
+            val target = prefs ?: context.preferencesEntryPoint().authPreferences().also { preferences = it }
+            val accountId = getSteam3AccountId(target) ?: 0L
+            val steamId64 = getSteamId64(target)?.toString() ?: "0"
             val steam3AccountId = accountId.toString()
 
             val basePath = mapping.pathType.toAbsPath(container, steamAppId, accountId)

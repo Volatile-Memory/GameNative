@@ -3,7 +3,6 @@ package app.gamenative.utils.downloader
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
 import com.winlator.container.ContainerManager
 import com.winlator.core.OnExtractFileListener
 import kotlinx.coroutines.runBlocking
@@ -33,7 +32,6 @@ class ContainerFilesDownloaderTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        PrefManager.init(context)
         cacheDir = File(context.filesDir, ContainerFilesDownloader.CONTAINER_FILES_CACHE_DIR)
 
         // Clean up any existing cache

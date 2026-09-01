@@ -3,7 +3,10 @@ package app.gamenative.utils
 import android.content.Context
 import android.os.Build
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
+import app.gamenative.preferences.AuthPreferences
+import app.gamenative.preferences.ContainerPreferences
+import app.gamenative.preferences.InputPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.data.GameSource
 import app.gamenative.enums.Marker
 import app.gamenative.service.SteamService
@@ -110,140 +113,171 @@ object ContainerUtils {
         }.toMap()
     }
 
-    fun getDefaultContainerData(): ContainerData {
+    @Volatile
+    var containerPreferences: ContainerPreferences? = null
+
+    @Volatile
+    var inputPreferences: InputPreferences? = null
+
+    @Volatile
+    var authPreferences: AuthPreferences? = null
+
+    fun getDefaultContainerData(
+        containerPreferences: ContainerPreferences? = this.containerPreferences,
+        inputPreferences: InputPreferences? = this.inputPreferences,
+        authPreferences: AuthPreferences? = this.authPreferences,
+    ): ContainerData {
+        val cp = containerPreferences ?: this.containerPreferences
+        val ip = inputPreferences ?: this.inputPreferences
+        val ap = authPreferences ?: this.authPreferences
         return ContainerData(
-            screenSize = PrefManager.screenSize,
-            envVars = PrefManager.envVars,
-            graphicsDriver = PrefManager.graphicsDriver,
-            graphicsDriverVersion = PrefManager.graphicsDriverVersion,
-            graphicsDriverConfig = PrefManager.graphicsDriverConfig,
-            rendererPresentMode = PrefManager.rendererPresentMode,
-            displayRenderer = PrefManager.displayRendererMode,
-            sfCompatMode = PrefManager.sfCompatMode,
-            dxwrapper = PrefManager.dxWrapper,
-            dxwrapperConfig = PrefManager.dxWrapperConfig,
-            audioDriver = PrefManager.audioDriver,
-            pulseaudioLowLatency = PrefManager.pulseaudioLowLatency,
-            wincomponents = PrefManager.winComponents,
-            drives = PrefManager.drives,
-            execArgs = PrefManager.execArgs,
+            screenSize = cp?.screenSize ?: "1280x720",
+            envVars = cp?.envVars ?: "",
+            graphicsDriver = cp?.graphicsDriver ?: "",
+            graphicsDriverVersion = cp?.graphicsDriverVersion ?: "",
+            graphicsDriverConfig = cp?.graphicsDriverConfig ?: "",
+            rendererPresentMode = cp?.rendererPresentMode ?: "",
+            displayRenderer = cp?.displayRendererMode ?: "",
+            sfCompatMode = cp?.sfCompatMode ?: false,
+            dxwrapper = cp?.dxWrapper ?: "",
+            dxwrapperConfig = cp?.dxWrapperConfig ?: "",
+            audioDriver = cp?.audioDriver ?: "",
+            pulseaudioLowLatency = cp?.pulseaudioLowLatency ?: false,
+            wincomponents = cp?.winComponents ?: "",
+            drives = cp?.drives ?: "",
+            execArgs = cp?.execArgs ?: "",
             showFPS = false,
-            launchRealSteam = PrefManager.launchRealSteam,
-            launchBionicSteam = PrefManager.launchBionicSteam,
-            cpuList = PrefManager.cpuList,
-            cpuListWoW64 = PrefManager.cpuListWoW64,
-            wow64Mode = PrefManager.wow64Mode,
-            startupSelection = PrefManager.startupSelection.toByte(),
-            box86Version = PrefManager.box86Version,
-            box64Version = PrefManager.box64Version,
-            box86Preset = PrefManager.box86Preset,
-            box64Preset = PrefManager.box64Preset,
+            launchRealSteam = cp?.launchRealSteam ?: false,
+            launchBionicSteam = cp?.launchBionicSteam ?: true,
+            cpuList = cp?.cpuList ?: "",
+            cpuListWoW64 = cp?.cpuListWoW64 ?: "",
+            wow64Mode = cp?.wow64Mode ?: true,
+            startupSelection = (cp?.startupSelection ?: 0).toByte(),
+            box86Version = cp?.box86Version ?: "",
+            box64Version = cp?.box64Version ?: "",
+            box86Preset = cp?.box86Preset ?: "",
+            box64Preset = cp?.box64Preset ?: "",
             desktopTheme = WineThemeManager.DEFAULT_DESKTOP_THEME,
-            language = PrefManager.containerLanguage,
-            containerVariant = PrefManager.containerVariant,
-            forceDlc = PrefManager.forceDlc,
-            localSavesOnly = PrefManager.localSavesOnly,
-            steamOfflineMode = PrefManager.steamOfflineMode,
-            epicOfflineMode = PrefManager.epicOfflineMode,
-            useLegacyDRM = PrefManager.useLegacyDRM,
-            unpackFiles = PrefManager.unpackFiles,
-            suspendPolicy = PrefManager.suspendPolicy,
-            wineVersion = PrefManager.wineVersion,
-            emulator = PrefManager.emulator,
-            fexcoreVersion = PrefManager.fexcoreVersion,
-            fexcoreTSOMode = PrefManager.fexcoreTSOMode,
-            fexcoreX87Mode = PrefManager.fexcoreX87Mode,
-            fexcoreMultiBlock = PrefManager.fexcoreMultiBlock,
-            fexcorePreset = PrefManager.fexcorePreset,
-            renderer = PrefManager.renderer,
-            csmt = PrefManager.csmt,
-            videoPciDeviceID = PrefManager.videoPciDeviceID,
-            offScreenRenderingMode = PrefManager.offScreenRenderingMode,
-            strictShaderMath = PrefManager.strictShaderMath,
-            videoMemorySize = PrefManager.videoMemorySize,
-            mouseWarpOverride = PrefManager.mouseWarpOverride,
-            useDRI3 = PrefManager.useDRI3,
-            useSteamInput = PrefManager.useSteamInput,
-            enableXInput = PrefManager.xinputEnabled,
-			enableDInput = PrefManager.dinputEnabled,
-			dinputMapperType = PrefManager.dinputMapperType.toByte(),
-            disableMouseInput = PrefManager.disableMouseInput,
-            portraitMode = PrefManager.portraitMode,
-            externalDisplayMode = PrefManager.externalDisplayInputMode,
-            externalDisplaySwap = PrefManager.externalDisplaySwap,
-            sharpnessEffect = PrefManager.sharpnessEffect,
-            sharpnessLevel = PrefManager.sharpnessLevel,
-            sharpnessDenoise = PrefManager.sharpnessDenoise,
+            language = cp?.containerLanguage ?: "english",
+            containerVariant = cp?.containerVariant ?: "",
+            forceDlc = cp?.forceDlc ?: true,
+            localSavesOnly = cp?.localSavesOnly ?: false,
+            steamOfflineMode = ap?.steamOfflineMode ?: false,
+            epicOfflineMode = ap?.epicOfflineMode ?: false,
+            useLegacyDRM = cp?.useLegacyDRM ?: false,
+            unpackFiles = cp?.unpackFiles ?: false,
+            suspendPolicy = cp?.suspendPolicy ?: "",
+            wineVersion = cp?.wineVersion ?: "",
+            emulator = cp?.emulator ?: "",
+            fexcoreVersion = cp?.fexcoreVersion ?: "",
+            fexcoreTSOMode = cp?.fexcoreTSOMode ?: "",
+            fexcoreX87Mode = cp?.fexcoreX87Mode ?: "",
+            fexcoreMultiBlock = cp?.fexcoreMultiBlock ?: "",
+            fexcorePreset = cp?.fexcorePreset ?: "",
+            renderer = cp?.renderer ?: "",
+            csmt = cp?.csmt ?: true,
+            videoPciDeviceID = cp?.videoPciDeviceID ?: 0,
+            offScreenRenderingMode = cp?.offScreenRenderingMode ?: "",
+            strictShaderMath = cp?.strictShaderMath ?: false,
+            videoMemorySize = cp?.videoMemorySize ?: "",
+            mouseWarpOverride = cp?.mouseWarpOverride ?: "",
+            useDRI3 = cp?.useDRI3 ?: false,
+            useSteamInput = ip?.useSteamInput ?: true,
+            enableXInput = ip?.xinputEnabled ?: true,
+            enableDInput = ip?.dinputEnabled ?: true,
+            dinputMapperType = (ip?.dinputMapperType ?: 0).toByte(),
+            disableMouseInput = ip?.disableMouseInput ?: false,
+            portraitMode = cp?.portraitMode ?: false,
+            externalDisplayMode = ip?.externalDisplayInputMode ?: "",
+            externalDisplaySwap = ip?.externalDisplaySwap ?: false,
+            sharpnessEffect = cp?.sharpnessEffect ?: "",
+            sharpnessLevel = cp?.sharpnessLevel ?: 0,
+            sharpnessDenoise = cp?.sharpnessDenoise ?: 0,
         )
     }
 
-    fun setDefaultContainerData(containerData: ContainerData) {
-        PrefManager.screenSize = containerData.screenSize
-        PrefManager.envVars = containerData.envVars
-        PrefManager.graphicsDriver = containerData.graphicsDriver
-        PrefManager.graphicsDriverVersion = containerData.graphicsDriverVersion
-        PrefManager.graphicsDriverConfig = containerData.graphicsDriverConfig
-        PrefManager.rendererPresentMode = containerData.rendererPresentMode
-        PrefManager.displayRendererMode = containerData.displayRenderer
-        PrefManager.sfCompatMode = containerData.sfCompatMode
-        PrefManager.dxWrapper = containerData.dxwrapper
-        PrefManager.dxWrapperConfig = containerData.dxwrapperConfig
-        PrefManager.audioDriver = containerData.audioDriver
-        PrefManager.pulseaudioLowLatency = containerData.pulseaudioLowLatency
-        PrefManager.winComponents = containerData.wincomponents
-        PrefManager.drives = containerData.drives
-        PrefManager.execArgs = containerData.execArgs
-        PrefManager.launchRealSteam = containerData.launchRealSteam
-        PrefManager.launchBionicSteam = containerData.launchBionicSteam
-        PrefManager.cpuList = containerData.cpuList
-        PrefManager.cpuListWoW64 = containerData.cpuListWoW64
-        PrefManager.wow64Mode = containerData.wow64Mode
-        PrefManager.startupSelection = containerData.startupSelection.toInt()
-        PrefManager.box86Version = containerData.box86Version
-        PrefManager.box64Version = containerData.box64Version
-        PrefManager.box86Preset = containerData.box86Preset
-        PrefManager.box64Preset = containerData.box64Preset
-
-        PrefManager.csmt = containerData.csmt
-        PrefManager.videoPciDeviceID = containerData.videoPciDeviceID
-        PrefManager.offScreenRenderingMode = containerData.offScreenRenderingMode
-        PrefManager.strictShaderMath = containerData.strictShaderMath
-        PrefManager.videoMemorySize = containerData.videoMemorySize
-        PrefManager.mouseWarpOverride = containerData.mouseWarpOverride
-        PrefManager.useDRI3 = containerData.useDRI3
-        PrefManager.disableMouseInput = containerData.disableMouseInput
-        PrefManager.externalDisplayInputMode = containerData.externalDisplayMode
-        PrefManager.externalDisplaySwap = containerData.externalDisplaySwap
-        PrefManager.containerLanguage = containerData.language
-        PrefManager.containerVariant = containerData.containerVariant
-        PrefManager.wineVersion = containerData.wineVersion
-        // Persist emulator/fexcore defaults for future containers
-        PrefManager.emulator = containerData.emulator
-        PrefManager.fexcoreVersion = containerData.fexcoreVersion
-        PrefManager.fexcoreTSOMode = containerData.fexcoreTSOMode
-        PrefManager.fexcoreX87Mode = containerData.fexcoreX87Mode
-        PrefManager.fexcoreMultiBlock = containerData.fexcoreMultiBlock
-        PrefManager.fexcorePreset = containerData.fexcorePreset
-		// Persist renderer and controller defaults
-		PrefManager.renderer = containerData.renderer
-        PrefManager.useSteamInput = containerData.useSteamInput
-        PrefManager.xinputEnabled = containerData.enableXInput
-		PrefManager.dinputEnabled = containerData.enableDInput
-		PrefManager.dinputMapperType = containerData.dinputMapperType.toInt()
-        PrefManager.forceDlc = containerData.forceDlc
-        PrefManager.localSavesOnly = containerData.localSavesOnly
-        PrefManager.steamOfflineMode = containerData.steamOfflineMode
-        PrefManager.epicOfflineMode = containerData.epicOfflineMode
-        PrefManager.useLegacyDRM = containerData.useLegacyDRM
-        PrefManager.unpackFiles = containerData.unpackFiles
-        PrefManager.suspendPolicy = containerData.suspendPolicy
-        PrefManager.portraitMode = containerData.portraitMode
-        PrefManager.sharpnessEffect = containerData.sharpnessEffect
-        PrefManager.sharpnessLevel = containerData.sharpnessLevel
-        PrefManager.sharpnessDenoise = containerData.sharpnessDenoise
+    fun setDefaultContainerData(
+        containerData: ContainerData,
+        containerPreferences: ContainerPreferences? = this.containerPreferences,
+        inputPreferences: InputPreferences? = this.inputPreferences,
+        authPreferences: AuthPreferences? = this.authPreferences,
+    ) {
+        val cp = containerPreferences ?: this.containerPreferences
+        val ip = inputPreferences ?: this.inputPreferences
+        val ap = authPreferences ?: this.authPreferences
+        cp?.let {
+            it.screenSize = containerData.screenSize
+            it.envVars = containerData.envVars
+            it.graphicsDriver = containerData.graphicsDriver
+            it.graphicsDriverVersion = containerData.graphicsDriverVersion
+            it.graphicsDriverConfig = containerData.graphicsDriverConfig
+            it.rendererPresentMode = containerData.rendererPresentMode
+            it.displayRendererMode = containerData.displayRenderer
+            it.sfCompatMode = containerData.sfCompatMode
+            it.dxWrapper = containerData.dxwrapper
+            it.dxWrapperConfig = containerData.dxwrapperConfig
+            it.audioDriver = containerData.audioDriver
+            it.pulseaudioLowLatency = containerData.pulseaudioLowLatency
+            it.winComponents = containerData.wincomponents
+            it.drives = containerData.drives
+            it.execArgs = containerData.execArgs
+            it.launchRealSteam = containerData.launchRealSteam
+            it.launchBionicSteam = containerData.launchBionicSteam
+            it.cpuList = containerData.cpuList
+            it.cpuListWoW64 = containerData.cpuListWoW64
+            it.wow64Mode = containerData.wow64Mode
+            it.startupSelection = containerData.startupSelection.toInt()
+            it.box86Version = containerData.box86Version
+            it.box64Version = containerData.box64Version
+            it.box86Preset = containerData.box86Preset
+            it.box64Preset = containerData.box64Preset
+            it.csmt = containerData.csmt
+            it.videoPciDeviceID = containerData.videoPciDeviceID
+            it.offScreenRenderingMode = containerData.offScreenRenderingMode
+            it.strictShaderMath = containerData.strictShaderMath
+            it.videoMemorySize = containerData.videoMemorySize
+            it.mouseWarpOverride = containerData.mouseWarpOverride
+            it.useDRI3 = containerData.useDRI3
+            it.containerLanguage = containerData.language
+            it.containerVariant = containerData.containerVariant
+            it.wineVersion = containerData.wineVersion
+            it.emulator = containerData.emulator
+            it.fexcoreVersion = containerData.fexcoreVersion
+            it.fexcoreTSOMode = containerData.fexcoreTSOMode
+            it.fexcoreX87Mode = containerData.fexcoreX87Mode
+            it.fexcoreMultiBlock = containerData.fexcoreMultiBlock
+            it.fexcorePreset = containerData.fexcorePreset
+            it.renderer = containerData.renderer
+            it.forceDlc = containerData.forceDlc
+            it.localSavesOnly = containerData.localSavesOnly
+            it.useLegacyDRM = containerData.useLegacyDRM
+            it.unpackFiles = containerData.unpackFiles
+            it.suspendPolicy = containerData.suspendPolicy
+            it.portraitMode = containerData.portraitMode
+            it.sharpnessEffect = containerData.sharpnessEffect
+            it.sharpnessLevel = containerData.sharpnessLevel
+            it.sharpnessDenoise = containerData.sharpnessDenoise
+        }
+        ip?.let {
+            it.disableMouseInput = containerData.disableMouseInput
+            it.externalDisplayInputMode = containerData.externalDisplayMode
+            it.externalDisplaySwap = containerData.externalDisplaySwap
+            it.useSteamInput = containerData.useSteamInput
+            it.xinputEnabled = containerData.enableXInput
+            it.dinputEnabled = containerData.enableDInput
+            it.dinputMapperType = containerData.dinputMapperType.toInt()
+        }
+        ap?.let {
+            it.steamOfflineMode = containerData.steamOfflineMode
+            it.epicOfflineMode = containerData.epicOfflineMode
+        }
     }
 
-    fun toContainerData(container: Container): ContainerData {
+    fun toContainerData(
+        container: Container,
+        containerPreferences: ContainerPreferences? = this.containerPreferences,
+    ): ContainerData {
+        val cp = containerPreferences ?: this.containerPreferences
         val renderer: String
         val csmt: Boolean
         val videoPciDeviceID: Int
@@ -255,25 +289,25 @@ object ContainerUtils {
         val userRegFile = File(container.rootDir, ".wine/user.reg")
         WineRegistryEditor(userRegFile).use { registryEditor ->
             renderer =
-                registryEditor.getStringValue("Software\\Wine\\Direct3D", "renderer", PrefManager.renderer)
+                registryEditor.getStringValue("Software\\Wine\\Direct3D", "renderer", cp?.renderer ?: "")
             csmt =
-                registryEditor.getDwordValue("Software\\Wine\\Direct3D", "csmt", if (PrefManager.csmt) 3 else 0) != 0
+                registryEditor.getDwordValue("Software\\Wine\\Direct3D", "csmt", if (cp?.csmt != false) 3 else 0) != 0
 
             videoPciDeviceID =
-                registryEditor.getDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", PrefManager.videoPciDeviceID)
+                registryEditor.getDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", cp?.videoPciDeviceID ?: 0)
 
             offScreenRenderingMode =
-                registryEditor.getStringValue("Software\\Wine\\Direct3D", "OffScreenRenderingMode", PrefManager.offScreenRenderingMode)
+                registryEditor.getStringValue("Software\\Wine\\Direct3D", "OffScreenRenderingMode", cp?.offScreenRenderingMode ?: "")
 
-            val strictShader = if (PrefManager.strictShaderMath) 1 else 0
+            val strictShader = if (cp?.strictShaderMath == true) 1 else 0
             strictShaderMath =
                 registryEditor.getDwordValue("Software\\Wine\\Direct3D", "strict_shader_math", strictShader) != 0
 
             videoMemorySize =
-                registryEditor.getStringValue("Software\\Wine\\Direct3D", "VideoMemorySize", PrefManager.videoMemorySize)
+                registryEditor.getStringValue("Software\\Wine\\Direct3D", "VideoMemorySize", cp?.videoMemorySize ?: "")
 
             mouseWarpOverride =
-                registryEditor.getStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", PrefManager.mouseWarpOverride)
+                registryEditor.getStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", cp?.mouseWarpOverride ?: "")
         }
 
         // Read controller API settings from container
@@ -662,11 +696,15 @@ object ContainerUtils {
         containerManager: ContainerManager,
         customConfig: ContainerData? = null,
     ): Container {
+        val containerPrefs = context.preferencesEntryPoint().containerPreferences()
+        val inputPrefs = context.preferencesEntryPoint().inputPreferences()
+        val authPrefs = context.preferencesEntryPoint().authPreferences()
+
          // Determine game source
         val gameSource = extractGameSourceFromContainerId(appId)
 
         // Set up container drives to include app
-        val defaultDrives = PrefManager.drives
+        val defaultDrives = containerPrefs.drives
         val drives = when (gameSource) {
             GameSource.STEAM -> {
                 // For Steam games, set up the app directory path
@@ -763,7 +801,7 @@ object ContainerUtils {
         val initialDxWrapper = if (customConfig?.dxwrapper != null) {
             customConfig.dxwrapper
         } else {
-            PrefManager.dxWrapper // Use default until we get the real version
+            containerPrefs.dxWrapper // Use default until we get the real version
         }
 
         // Set up data for container creation
@@ -820,7 +858,7 @@ object ContainerUtils {
         // Check for cached best config (store-backed games only, only if no custom config provided)
         var bestConfigMap: Map<String, Any?>? = null
 
-        if (supportsKnownConfigAutoApply(gameSource) && customConfig == null && PrefManager.autoApplyKnownConfig) {
+        if (supportsKnownConfigAutoApply(gameSource) && customConfig == null && containerPrefs.autoApplyKnownConfig) {
             try {
                 val gameName = resolveGameName(appId)
                 if (gameName != "Unknown" && gameName.isNotBlank()) {
@@ -870,63 +908,63 @@ object ContainerUtils {
         } else {
             // Use default config with drives
             ContainerData(
-                screenSize = PrefManager.screenSize,
-                envVars = PrefManager.envVars,
-                cpuList = PrefManager.cpuList,
-                cpuListWoW64 = PrefManager.cpuListWoW64,
-                graphicsDriver = PrefManager.graphicsDriver,
-                graphicsDriverVersion = PrefManager.graphicsDriverVersion,
-                graphicsDriverConfig = PrefManager.graphicsDriverConfig,
-                rendererPresentMode = PrefManager.rendererPresentMode,
-                displayRenderer = PrefManager.displayRendererMode,
-                sfCompatMode = PrefManager.sfCompatMode,
+                screenSize = containerPrefs.screenSize,
+                envVars = containerPrefs.envVars,
+                cpuList = containerPrefs.cpuList,
+                cpuListWoW64 = containerPrefs.cpuListWoW64,
+                graphicsDriver = containerPrefs.graphicsDriver,
+                graphicsDriverVersion = containerPrefs.graphicsDriverVersion,
+                graphicsDriverConfig = containerPrefs.graphicsDriverConfig,
+                rendererPresentMode = containerPrefs.rendererPresentMode,
+                displayRenderer = containerPrefs.displayRendererMode,
+                sfCompatMode = containerPrefs.sfCompatMode,
                 dxwrapper = initialDxWrapper,
-                dxwrapperConfig = PrefManager.dxWrapperConfig,
-                audioDriver = PrefManager.audioDriver,
-                pulseaudioLowLatency = PrefManager.pulseaudioLowLatency,
-                wincomponents = PrefManager.winComponents,
+                dxwrapperConfig = containerPrefs.dxWrapperConfig,
+                audioDriver = containerPrefs.audioDriver,
+                pulseaudioLowLatency = containerPrefs.pulseaudioLowLatency,
+                wincomponents = containerPrefs.winComponents,
                 drives = drives,
-                execArgs = PrefManager.execArgs,
+                execArgs = containerPrefs.execArgs,
                 showFPS = false,
-                launchRealSteam = PrefManager.launchRealSteam,
-                launchBionicSteam = PrefManager.launchBionicSteam,
-                wow64Mode = PrefManager.wow64Mode,
-                startupSelection = PrefManager.startupSelection.toByte(),
-                box86Version = PrefManager.box86Version,
-                box64Version = PrefManager.box64Version,
-                box86Preset = PrefManager.box86Preset,
-                box64Preset = PrefManager.box64Preset,
+                launchRealSteam = containerPrefs.launchRealSteam,
+                launchBionicSteam = containerPrefs.launchBionicSteam,
+                wow64Mode = containerPrefs.wow64Mode,
+                startupSelection = containerPrefs.startupSelection.toByte(),
+                box86Version = containerPrefs.box86Version,
+                box64Version = containerPrefs.box64Version,
+                box86Preset = containerPrefs.box86Preset,
+                box64Preset = containerPrefs.box64Preset,
                 desktopTheme = WineThemeManager.DEFAULT_DESKTOP_THEME,
-                language = PrefManager.containerLanguage,
-                containerVariant = PrefManager.containerVariant,
-                wineVersion = PrefManager.wineVersion,
-                emulator = PrefManager.emulator,
-                fexcoreVersion = PrefManager.fexcoreVersion,
-                fexcoreTSOMode = PrefManager.fexcoreTSOMode,
-                fexcoreX87Mode = PrefManager.fexcoreX87Mode,
-                fexcoreMultiBlock = PrefManager.fexcoreMultiBlock,
-                fexcorePreset = PrefManager.fexcorePreset,
-                renderer = PrefManager.renderer,
-                csmt = PrefManager.csmt,
-                videoPciDeviceID = PrefManager.videoPciDeviceID,
-                offScreenRenderingMode = PrefManager.offScreenRenderingMode,
-                strictShaderMath = PrefManager.strictShaderMath,
-                useDRI3 = PrefManager.useDRI3,
-                videoMemorySize = PrefManager.videoMemorySize,
-                mouseWarpOverride = PrefManager.mouseWarpOverride,
-                enableXInput = PrefManager.xinputEnabled,
-                enableDInput = PrefManager.dinputEnabled,
-                dinputMapperType = PrefManager.dinputMapperType.toByte(),
-                disableMouseInput = PrefManager.disableMouseInput,
-                forceDlc = PrefManager.forceDlc,
-                steamOfflineMode = PrefManager.steamOfflineMode,
-                epicOfflineMode = PrefManager.epicOfflineMode,
-                useLegacyDRM = PrefManager.useLegacyDRM,
-                unpackFiles = PrefManager.unpackFiles,
-                suspendPolicy = PrefManager.suspendPolicy,
-                portraitMode = PrefManager.portraitMode,
-                externalDisplayMode = PrefManager.externalDisplayInputMode,
-                externalDisplaySwap = PrefManager.externalDisplaySwap,
+                language = containerPrefs.containerLanguage,
+                containerVariant = containerPrefs.containerVariant,
+                wineVersion = containerPrefs.wineVersion,
+                emulator = containerPrefs.emulator,
+                fexcoreVersion = containerPrefs.fexcoreVersion,
+                fexcoreTSOMode = containerPrefs.fexcoreTSOMode,
+                fexcoreX87Mode = containerPrefs.fexcoreX87Mode,
+                fexcoreMultiBlock = containerPrefs.fexcoreMultiBlock,
+                fexcorePreset = containerPrefs.fexcorePreset,
+                renderer = containerPrefs.renderer,
+                csmt = containerPrefs.csmt,
+                videoPciDeviceID = containerPrefs.videoPciDeviceID,
+                offScreenRenderingMode = containerPrefs.offScreenRenderingMode,
+                strictShaderMath = containerPrefs.strictShaderMath,
+                useDRI3 = containerPrefs.useDRI3,
+                videoMemorySize = containerPrefs.videoMemorySize,
+                mouseWarpOverride = containerPrefs.mouseWarpOverride,
+                enableXInput = inputPrefs.xinputEnabled,
+                enableDInput = inputPrefs.dinputEnabled,
+                dinputMapperType = inputPrefs.dinputMapperType.toByte(),
+                disableMouseInput = inputPrefs.disableMouseInput,
+                forceDlc = containerPrefs.forceDlc,
+                steamOfflineMode = authPrefs.steamOfflineMode,
+                epicOfflineMode = authPrefs.epicOfflineMode,
+                useLegacyDRM = containerPrefs.useLegacyDRM,
+                unpackFiles = containerPrefs.unpackFiles,
+                suspendPolicy = containerPrefs.suspendPolicy,
+                portraitMode = containerPrefs.portraitMode,
+                externalDisplayMode = inputPrefs.externalDisplayInputMode,
+                externalDisplaySwap = inputPrefs.externalDisplaySwap,
             )
         }
 

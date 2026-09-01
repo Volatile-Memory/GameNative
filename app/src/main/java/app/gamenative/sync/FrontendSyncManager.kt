@@ -2,7 +2,6 @@ package app.gamenative.sync
 
 import android.content.Context
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.GameSource
 import app.gamenative.db.dao.AmazonGameDao
@@ -10,6 +9,8 @@ import app.gamenative.db.dao.EpicGameDao
 import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.SteamAppDao
 import app.gamenative.events.AndroidEvent
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.service.SteamService
 import app.gamenative.ui.util.SnackbarManager
 import dagger.hilt.android.EntryPointAccessors
@@ -56,6 +57,7 @@ object FrontendSyncManager {
     private lateinit var epicGameDao: EpicGameDao
     private lateinit var gogGameDao: GOGGameDao
     private lateinit var amazonGameDao: AmazonGameDao
+    private lateinit var downloadPreferences: DownloadPreferences
 
     /** True while a [resyncAll] job is in progress. */
     private val _isSyncing = MutableStateFlow(false)
@@ -89,12 +91,13 @@ object FrontendSyncManager {
         epicGameDao = ep.epicGameDao()
         gogGameDao = ep.gogGameDao()
         amazonGameDao = ep.amazonGameDao()
+        downloadPreferences = context.preferencesEntryPoint().downloadPreferences()
 
         PluviaApp.events.on<AndroidEvent.LibraryInstallStatusChanged, Unit>(onInstallStatusChanged)
 
         scope.launch {
             GameSource.entries.forEach { source ->
-                val dir = PrefManager.getFrontendSyncDir(source)
+                val dir = downloadPreferences.getFrontendSyncDir(source)
                 if (dir.isNotEmpty()) {
                     configuredDirs[source] = dir
                     syncAllInstalledGames(source, dir)
@@ -159,12 +162,12 @@ object FrontendSyncManager {
             if (oldPath.isNotEmpty() && oldPath != newPath && deleteOldFiles) {
                 deleteAllFilesWithExtension(oldPath, extensionFor(source))
             }
-            PrefManager.setFrontendSyncDir(source, newPath)
+            downloadPreferences.setFrontendSyncDir(source, newPath)
         }
     }
 
     private suspend fun syncGame(appId: Int, source: GameSource) {
-        val dir = PrefManager.getFrontendSyncDir(source)
+        val dir = downloadPreferences.getFrontendSyncDir(source)
         if (dir.isEmpty()) return
 
         val gameName = lookupGameName(appId, source) ?: run {

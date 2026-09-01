@@ -1,6 +1,6 @@
 package app.gamenative.utils
 
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -13,6 +13,9 @@ import timber.log.Timber
  */
 object GameCompatibilityCache {
     private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L // 6 hours
+
+    @Volatile
+    var preferences: GeneralPreferences? = null
 
     private val inMemoryCache = mutableMapOf<String, GameCompatibilityService.GameCompatibilityResponse>()
     private val timestamps = mutableMapOf<String, Long>()
@@ -66,11 +69,12 @@ object GameCompatibilityCache {
      * Loads cache from persistent storage into memory.
      * Only parses JSON, no expiration filtering (lazy expiration).
      */
-    private fun loadCache() {
+    private fun loadCache(prefs: GeneralPreferences? = preferences) {
         if (cacheLoaded) return
 
         try {
-            val cacheJson = PrefManager.gameCompatibilityCache
+            val targetPrefs = prefs ?: preferences
+            val cacheJson = targetPrefs?.gameCompatibilityCache ?: ""
             if (cacheJson.isEmpty() || cacheJson == "{}") {
                 cacheLoaded = true
                 return
@@ -96,7 +100,7 @@ object GameCompatibilityCache {
     /**
      * Saves cache to persistent storage.
      */
-    private fun saveCache() {
+    private fun saveCache(prefs: GeneralPreferences? = preferences) {
         try {
             val now = System.currentTimeMillis()
             val cacheMap = inMemoryCache.mapValues { (gameName, response) ->
@@ -104,7 +108,8 @@ object GameCompatibilityCache {
                 CachedCompatibilityResponse(response.toData(), timestamp)
             }
             val cacheJson = Json.encodeToString(cacheMap)
-            PrefManager.gameCompatibilityCache = cacheJson
+            val targetPrefs = prefs ?: preferences
+            targetPrefs?.let { it.gameCompatibilityCache = cacheJson }
             Timber.tag("GameCompatibilityCache").d("Saved ${cacheMap.size} entries to persistent storage")
         } catch (e: Exception) {
             Timber.tag("GameCompatibilityCache").e(e, "Failed to save cache to persistent storage")
@@ -171,10 +176,11 @@ object GameCompatibilityCache {
     /**
      * Clears the entire cache (both memory and persistent storage).
      */
-    fun clear() {
+    fun clear(prefs: GeneralPreferences? = preferences) {
         inMemoryCache.clear()
         timestamps.clear()
-        PrefManager.gameCompatibilityCache = "{}"
+        val targetPrefs = prefs ?: preferences
+        targetPrefs?.let { it.gameCompatibilityCache = "{}" }
         Timber.tag("GameCompatibilityCache").d("Cache cleared")
     }
 

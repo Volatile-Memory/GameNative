@@ -5,7 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.security.ProviderException
 import android.util.Base64
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -25,6 +25,9 @@ import java.util.concurrent.TimeUnit
 object KeyAttestationHelper {
 
     private const val TAG = "KeyAttestationHelper"
+
+    @Volatile
+    var preferences: GeneralPreferences? = null
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -90,15 +93,18 @@ object KeyAttestationHelper {
      * in API request bodies. Returns null if attestation is unavailable or fails
      * for any reason, allowing the app to continue without attestation.
      */
-    suspend fun getAttestationFields(baseUrl: String): Pair<String, List<String>>? {
+    suspend fun getAttestationFields(
+        baseUrl: String,
+        prefs: GeneralPreferences? = preferences,
+    ): Pair<String, List<String>>? {
         return try {
             val nonce = fetchNonce(baseUrl)
             val chain = generateAttestedKey(nonce)
-            PrefManager.keyAttestationAvailable = true
+            (prefs ?: preferences)?.keyAttestationAvailable = true
             Pair(nonce, chain)
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Key attestation failed, continuing without it")
-            PrefManager.keyAttestationAvailable = false
+            (prefs ?: preferences)?.keyAttestationAvailable = false
             null
         }
     }

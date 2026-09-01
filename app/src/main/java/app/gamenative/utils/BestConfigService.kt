@@ -3,8 +3,9 @@ package app.gamenative.utils
 import android.content.Context
 import androidx.compose.ui.graphics.Color
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
 import app.gamenative.R
+import app.gamenative.preferences.ContainerPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import com.winlator.box86_64.Box86_64PresetManager
 import com.winlator.container.Container
 import com.winlator.contents.ContentProfile
@@ -731,7 +732,11 @@ object BestConfigService {
     /**
      * Replace missing component versions in filteredJson with defaults so config can still be applied.
      */
-    private fun replaceWithDefaults(filteredJson: JSONObject, missing: List<String>) {
+    private fun replaceWithDefaults(
+        filteredJson: JSONObject,
+        missing: List<String>,
+        containerPreferences: ContainerPreferences,
+    ) {
         for (entry in missing) {
             when {
                 entry.startsWith("DXVK ") -> {
@@ -745,10 +750,10 @@ object BestConfigService {
                     filteredJson.put("dxwrapperConfig", kvs.toString())
                 }
                 entry.startsWith("Box64 preset ") -> {
-                    filteredJson.put("box64Preset", PrefManager.box64Preset)
+                    filteredJson.put("box64Preset", containerPreferences.box64Preset)
                 }
                 entry.startsWith("FEXCore preset ") -> {
-                    filteredJson.put("fexcorePreset", PrefManager.fexcorePreset)
+                    filteredJson.put("fexcorePreset", containerPreferences.fexcorePreset)
                 }
                 entry.startsWith("Box64 ") || entry.startsWith("WoWBox64 ") -> {
                     filteredJson.put("box64Version", DefaultVersion.BOX64)
@@ -760,8 +765,8 @@ object BestConfigService {
                     filteredJson.put("wineVersion", DefaultVersion.WINE_VERSION)
                 }
                 entry.startsWith("Graphics driver ") -> {
-                    filteredJson.put("graphicsDriverConfig", PrefManager.graphicsDriverConfig)
-                    filteredJson.put("graphicsDriverVersion", PrefManager.graphicsDriverVersion)
+                    filteredJson.put("graphicsDriverConfig", containerPreferences.graphicsDriverConfig)
+                    filteredJson.put("graphicsDriverVersion", containerPreferences.graphicsDriverVersion)
                 }
             }
         }
@@ -769,7 +774,7 @@ object BestConfigService {
 
     /**
      * Parses bestConfig JSON into a map of fields to update.
-     * First parses values (using PrefManager defaults for validation), then validates component versions.
+     * First parses values (using domain preferences defaults for validation), then validates component versions.
      * Returns map with only fields present in config (no defaults), or empty map if validation fails.
      * When forceApply is true, missing components are replaced with defaults instead of rejecting.
      * When preserveConfigValues is true, match filtering and device-specific substitutions are skipped.
@@ -804,6 +809,8 @@ object BestConfigService {
         matchedGpu: String = "",
         preserveConfigValues: Boolean = false,
     ): ParsedConfigResult {
+        val containerPrefs = context.preferencesEntryPoint().containerPreferences()
+        val authPrefs = context.preferencesEntryPoint().authPreferences()
         try {
             val originalJson = JSONObject(configJson.toString())
 
@@ -813,7 +820,7 @@ object BestConfigService {
                     resultMap["executablePath"] = originalJson.optString("executablePath", "")
                 }
                 if (originalJson.has("useLegacyDRM") && !originalJson.isNull("useLegacyDRM")) {
-                    resultMap["useLegacyDRM"] = originalJson.optBoolean("useLegacyDRM", PrefManager.useLegacyDRM)
+                    resultMap["useLegacyDRM"] = originalJson.optBoolean("useLegacyDRM", containerPrefs.useLegacyDRM)
                 }
                 return ParsedConfigResult(resultMap)
             }
@@ -892,7 +899,7 @@ object BestConfigService {
                         return ParsedConfigResult(emptyMap(), missingComponents)
                     }
                     Timber.tag("BestConfigService").w("Force-applying config, replacing missing components with defaults: ${missingComponents.joinToString(", ")}")
-                    replaceWithDefaults(filteredJson, missingComponents)
+                    replaceWithDefaults(filteredJson, missingComponents, containerPrefs)
                 }
 
                 // Step 3: Build map with only fields present in filteredJson (not defaults)
@@ -919,7 +926,7 @@ object BestConfigService {
                     resultMap["execArgs"] = filteredJson.optString("execArgs", "")
                 }
                 if (filteredJson.has("startupSelection") && !filteredJson.isNull("startupSelection")) {
-                    val startupSelection = filteredJson.optInt("startupSelection", PrefManager.startupSelection)
+                    val startupSelection = filteredJson.optInt("startupSelection", containerPrefs.startupSelection)
                     resultMap["startupSelection"] = if (preserveConfigValues) {
                         startupSelection
                     } else {
@@ -957,35 +964,35 @@ object BestConfigService {
                     resultMap["fexcorePreset"] = filteredJson.optString("fexcorePreset", "")
                 }
                 if (filteredJson.has("useLegacyDRM") && !filteredJson.isNull("useLegacyDRM")) {
-                    resultMap["useLegacyDRM"] = filteredJson.optBoolean("useLegacyDRM", PrefManager.useLegacyDRM)
+                    resultMap["useLegacyDRM"] = filteredJson.optBoolean("useLegacyDRM", containerPrefs.useLegacyDRM)
                 }
                 if (filteredJson.has("launchBionicSteam") && !filteredJson.isNull("launchBionicSteam")) {
                     resultMap["launchBionicSteam"] = filteredJson.optBoolean("launchBionicSteam", false)
                 }
                 if (filteredJson.has("steamOfflineMode") && !filteredJson.isNull("steamOfflineMode")) {
-                    resultMap["steamOfflineMode"] = filteredJson.optBoolean("steamOfflineMode", PrefManager.steamOfflineMode)
+                    resultMap["steamOfflineMode"] = filteredJson.optBoolean("steamOfflineMode", authPrefs.steamOfflineMode)
                 }
                 if (filteredJson.has("envVars") && !filteredJson.isNull("envVars")) {
-                    var envVars = filteredJson.optString("envVars", PrefManager.envVars)
+                    var envVars = filteredJson.optString("envVars", containerPrefs.envVars)
                     // Strip DXVK/VKD3D frame rate caps from backend config - client-side limiter handles this
                     envVars = envVars.replace(Regex("""\s*DXVK_FRAME_RATE=\d+"""), "")
                     envVars = envVars.replace(Regex("""\s*VKD3D_FRAME_RATE=\d+"""), "")
                     resultMap["envVars"] = envVars.trim()
                 }
                 if (filteredJson.has("cpuList") && !filteredJson.isNull("cpuList")) {
-                    resultMap["cpuList"] = filteredJson.optString("cpuList", PrefManager.cpuList)
+                    resultMap["cpuList"] = filteredJson.optString("cpuList", containerPrefs.cpuList)
                 }
                 if (filteredJson.has("cpuListWoW64") && !filteredJson.isNull("cpuListWoW64")) {
-                    resultMap["cpuListWoW64"] = filteredJson.optString("cpuListWoW64", PrefManager.cpuListWoW64)
+                    resultMap["cpuListWoW64"] = filteredJson.optString("cpuListWoW64", containerPrefs.cpuListWoW64)
                 }
                 if (filteredJson.has("audioDriver") && !filteredJson.isNull("audioDriver")) {
-                    resultMap["audioDriver"] = filteredJson.optString("audioDriver", PrefManager.audioDriver)
+                    resultMap["audioDriver"] = filteredJson.optString("audioDriver", containerPrefs.audioDriver)
                 }
                 if (filteredJson.has("wincomponents") && !filteredJson.isNull("wincomponents")) {
-                    resultMap["wincomponents"] = filteredJson.optString("wincomponents", PrefManager.winComponents)
+                    resultMap["wincomponents"] = filteredJson.optString("wincomponents", containerPrefs.winComponents)
                 }
                 if (filteredJson.has("videoMemorySize") && !filteredJson.isNull("videoMemorySize")) {
-                    resultMap["videoMemorySize"] = filteredJson.optString("videoMemorySize", PrefManager.videoMemorySize)
+                    resultMap["videoMemorySize"] = filteredJson.optString("videoMemorySize", containerPrefs.videoMemorySize)
                 }
 
                 return ParsedConfigResult(resultMap, missingComponents)

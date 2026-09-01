@@ -3,8 +3,9 @@ package app.gamenative.utils
 import android.content.Context
 import android.content.Intent
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.data.GameSource
+import app.gamenative.preferences.ContainerPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import com.winlator.container.Container
 import com.winlator.container.ContainerData
 import com.winlator.core.DXVKHelper
@@ -23,12 +24,19 @@ object IntentLaunchManager {
     private const val ACTION_LAUNCH_GAME = "app.gamenative.LAUNCH_GAME"
     private const val MAX_CONFIG_JSON_SIZE = 50000 // 50KB limit to prevent memory exhaustion
 
+    @Volatile
+    var preferences: ContainerPreferences? = null
+
     data class LaunchRequest(
         val appId: String,
         val containerConfig: ContainerData? = null,
     )
 
-    fun parseLaunchIntent(intent: Intent): LaunchRequest? {
+    fun parseLaunchIntent(
+        intent: Intent,
+        context: Context? = null,
+        prefs: ContainerPreferences? = null,
+    ): LaunchRequest? {
         Timber.d("[IntentLaunchManager]: Parsing intent: action=${intent.action}")
 
         if (intent.action != ACTION_LAUNCH_GAME) {
@@ -57,7 +65,8 @@ object IntentLaunchManager {
         val containerConfigJson = intent.getStringExtra(EXTRA_CONTAINER_CONFIG)
         val containerConfig = if (containerConfigJson != null) {
             try {
-                parseContainerConfig(containerConfigJson)
+                val targetPrefs = prefs ?: context?.preferencesEntryPoint()?.containerPreferences() ?: preferences
+                parseContainerConfig(containerConfigJson, targetPrefs)
             } catch (e: Exception) {
                 Timber.e(e, "[IntentLaunchManager]: Failed to parse container configuration JSON")
                 null
@@ -180,7 +189,10 @@ object IntentLaunchManager {
         return issues
     }
 
-    private fun parseContainerConfig(jsonString: String): ContainerData {
+    private fun parseContainerConfig(
+        jsonString: String,
+        prefs: ContainerPreferences? = preferences,
+    ): ContainerData {
         if (jsonString.length > MAX_CONFIG_JSON_SIZE) {
             throw IllegalArgumentException("Container configuration JSON too large (max ${MAX_CONFIG_JSON_SIZE / 1000}KB)")
         }
@@ -240,7 +252,7 @@ object IntentLaunchManager {
             suspendPolicy = if (json.has("suspendPolicy")) {
                 Container.normalizeSuspendPolicy(json.getString("suspendPolicy"))
             } else {
-                PrefManager.suspendPolicy
+                (prefs ?: preferences)?.suspendPolicy ?: Container.SUSPEND_POLICY_MANUAL
             },
             shaderBackend = if (json.has("shaderBackend")) json.getString("shaderBackend") else "glsl",
             useGLSL = if (json.has("useGLSL")) json.getString("useGLSL") else "enabled",

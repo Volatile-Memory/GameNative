@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.res.Resources
 import androidx.test.core.app.ApplicationProvider
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -70,17 +70,14 @@ class BestConfigServiceTest {
         context = ApplicationProvider.getApplicationContext()
         resources = context.resources
 
-        // Initialize PrefManager
-        PrefManager.init(context)
-
         val workingDir = File(System.getProperty("user.dir"))
         val manifestFile = listOf(
             File(workingDir, "manifest.json"),
             File(workingDir.parentFile, "manifest.json"),
         ).firstOrNull { it.exists() }
         if (manifestFile != null) {
-            PrefManager.componentManifestJson = manifestFile.readText()
-            PrefManager.componentManifestFetchedAt = System.currentTimeMillis()
+            PreferencesEntryPoint.get(context).generalPreferences().componentManifestJson = manifestFile.readText()
+            PreferencesEntryPoint.get(context).generalPreferences().componentManifestFetchedAt = System.currentTimeMillis()
         }
     }
 
@@ -413,7 +410,7 @@ class BestConfigServiceTest {
     }
 
     @Test
-    fun testPrefManagerDefaults_usedWhenFieldsMissing() {
+    fun testPreferencesDefaults_usedWhenFieldsMissing() {
         // Modern flavor rejects glibc containers wholesale — this test only applies to legacy.
         assumeFalse("glibc not supported on modern", BuildConfig.MODERN_ANDROID)
         // Create a minimal config with only a few fields
@@ -447,7 +444,7 @@ class BestConfigServiceTest {
     }
 
     @Test
-    fun testPrefManagerDefaults_usedWhenFieldsEmpty() {
+    fun testPreferencesDefaults_usedWhenFieldsEmpty() {
         // Create a config with empty string fields
         val emptyFieldsConfigJson = """
             {
@@ -466,7 +463,7 @@ class BestConfigServiceTest {
 
         assertNotNull("Result should not be null", result)
 
-        // Empty strings should be treated as missing and use PrefManager defaults
+        // Empty strings should be treated as missing and use preference defaults
         // Note: optString returns empty string if field exists but is empty
         // So we need to check if the parsing logic handles this correctly
         // Based on the implementation, empty strings will be used as-is, not replaced with defaults
@@ -493,7 +490,7 @@ class BestConfigServiceTest {
         assertNotNull("Result should not be null", result)
 
         // If version exists in wowbox64_version_entries, it should be preserved
-        // Otherwise, should fall back to PrefManager default
+        // Otherwise, should fall back to preference default
         assertNotNull("Result should not be null", result)
         assertTrue("Result should not be empty", result!!.isNotEmpty())
         assertNotNull("Box64 version should be set", result["box64Version"])
@@ -549,7 +546,7 @@ class BestConfigServiceTest {
 
     @Test
     fun testAllInvalidVersions_fallbackToNull() {
-        // Test that all downloadable components with invalid versions fall back to PrefManager defaults
+        // Test that all downloadable components with invalid versions fall back to preference defaults
         val invalidVersionsConfigJson = """
             {
                 "containerVariant": "bionic",
@@ -587,7 +584,7 @@ class BestConfigServiceTest {
 
     @Test
     fun testInvalidPresets_returnNull() {
-        // Test that invalid Box64 and Box86 presets fall back to PrefManager defaults
+        // Test that invalid Box64 and Box86 presets fall back to preference defaults
         val invalidPresetsConfigJson = """
             {
                 "wineVersion": "proton-9.0-arm64ec",

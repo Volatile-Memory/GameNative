@@ -2,7 +2,8 @@ package app.gamenative.utils
 
 import android.app.Application
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.StandardIntegrityManager
 import com.google.android.play.core.integrity.StandardIntegrityManager.StandardIntegrityTokenProvider
@@ -14,9 +15,13 @@ import kotlin.coroutines.resume
 object PlayIntegrity {
 
     @Volatile
+    var preferences: GeneralPreferences? = null
+
+    @Volatile
     private var tokenProvider: StandardIntegrityTokenProvider? = null
 
-    fun warmUp(application: Application) {
+    fun warmUp(application: Application, prefs: GeneralPreferences? = preferences) {
+        val generalPrefs = prefs ?: application.preferencesEntryPoint().generalPreferences().also { preferences = it }
         val cloudProjectNumber = BuildConfig.CLOUD_PROJECT_NUMBER.toLongOrNull()
         if (cloudProjectNumber == null || cloudProjectNumber == 0L) {
             Timber.tag("PlayIntegrity").e("Invalid CLOUD_PROJECT_NUMBER: '${BuildConfig.CLOUD_PROJECT_NUMBER}'")
@@ -32,10 +37,10 @@ object PlayIntegrity {
                 .build(),
         ).addOnSuccessListener { provider ->
             tokenProvider = provider
-            PrefManager.playIntegrityAvailable = true
+            generalPrefs.playIntegrityAvailable = true
             Timber.tag("PlayIntegrity").d("Token provider ready")
         }.addOnFailureListener { e ->
-            PrefManager.playIntegrityAvailable = false
+            generalPrefs.playIntegrityAvailable = false
             Timber.tag("PlayIntegrity").e(e, "Failed to prepare integrity token provider")
         }
     }

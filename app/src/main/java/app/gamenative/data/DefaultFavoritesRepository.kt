@@ -1,6 +1,6 @@
 package app.gamenative.data
 
-import app.gamenative.PrefManager
+import app.gamenative.preferences.LibraryPreferences
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /**
- * Default implementation of [FavoritesRepository] backed by [PrefManager] DataStore preferences.
+ * Default implementation of [FavoritesRepository] backed by [LibraryPreferences] DataStore preferences.
  * Supports Hilt dependency injection and can be easily mocked or tested via its internal constructor.
  */
 @Singleton
@@ -24,17 +24,17 @@ class DefaultFavoritesRepository internal constructor(
 ) : FavoritesRepository {
 
     @Inject
-    constructor() : this(
+    constructor(libraryPreferences: LibraryPreferences) : this(
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
         loadPreferences = {
             try {
-                PrefManager.favoriteAppIds
+                libraryPreferences.favoriteAppIds
             } catch (e: Exception) {
                 Timber.tag("FavoritesRepository").e(e, "Failed to load favorite app ids")
                 emptySet()
             }
         },
-        savePreferences = { PrefManager.favoriteAppIds = it },
+        savePreferences = { libraryPreferences.favoriteAppIds = it },
     )
 
     private val _favorites = MutableStateFlow<Set<String>>(emptySet())

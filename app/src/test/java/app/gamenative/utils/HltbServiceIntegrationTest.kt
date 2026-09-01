@@ -1,11 +1,10 @@
 package app.gamenative.utils
 
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
 import io.mockk.every
 import io.mockk.just
-import io.mockk.mockkObject
+import io.mockk.mockk
 import io.mockk.runs
-import io.mockk.unmockkObject
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -21,15 +20,16 @@ import org.junit.Test
 class HltbServiceIntegrationTest {
 
     private lateinit var server: MockWebServer
+    private lateinit var generalPreferences: GeneralPreferences
 
     @Before
     fun setUp() {
         server = MockWebServer()
         server.start()
 
-        mockkObject(PrefManager)
-        every { PrefManager.hltbCache } returns "{}"
-        every { PrefManager.hltbCache = any() } just runs
+        generalPreferences = mockk<GeneralPreferences>(relaxed = true)
+        every { generalPreferences.hltbCache } returns "{}"
+        every { generalPreferences.hltbCache = any() } just runs
 
         HltbCache.reset()
         HltbService.setApiBaseUrlForTesting(server.url("/").toString().removeSuffix("/"))
@@ -39,7 +39,6 @@ class HltbServiceIntegrationTest {
     fun tearDown() {
         HltbService.resetForTesting()
         HltbCache.reset()
-        unmockkObject(PrefManager)
         server.shutdown()
     }
 

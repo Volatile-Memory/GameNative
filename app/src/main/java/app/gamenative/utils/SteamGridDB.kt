@@ -2,7 +2,7 @@ package app.gamenative.utils
 
 import android.content.Context
 import android.graphics.BitmapFactory
-import app.gamenative.PrefManager
+import app.gamenative.preferences.DownloadPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -28,6 +28,9 @@ object SteamGridDB {
     private const val HEROES_ENDPOINT = "/heroes/game"
     private const val LOGOS_ENDPOINT = "/logos/game"
 
+    @Volatile
+    var preferences: DownloadPreferences? = null
+
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -52,14 +55,15 @@ object SteamGridDB {
      * Search for a game by name and return the first match.
      * Returns null if no match is found or if API key is missing.
      */
-    suspend fun searchGame(gameName: String): GameSearchResult? = withContext(Dispatchers.IO) {
+    suspend fun searchGame(gameName: String, prefs: DownloadPreferences? = preferences): GameSearchResult? = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
         if (apiKey == null) {
             Timber.tag("SteamGridDB").i("Skipping image fetch for '$gameName' - API key not configured")
             return@withContext null
         }
 
-        if (!PrefManager.fetchSteamGridDBImages) {
+        val fetchImagesEnabled = (prefs ?: preferences)?.fetchSteamGridDBImages ?: true
+        if (!fetchImagesEnabled) {
             Timber.tag("SteamGridDB").d("Image fetching is disabled in settings")
             return@withContext null
         }
@@ -415,7 +419,8 @@ object SteamGridDB {
      */
     suspend fun fetchGameImages(
         gameName: String,
-        gameFolderPath: String
+        gameFolderPath: String,
+        prefs: DownloadPreferences? = preferences,
     ): ImageFetchResult = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
         if (apiKey == null) {
@@ -423,7 +428,8 @@ object SteamGridDB {
             return@withContext ImageFetchResult(null, null, null, null, null)
         }
 
-        if (!PrefManager.fetchSteamGridDBImages) {
+        val fetchImagesEnabled = (prefs ?: preferences)?.fetchSteamGridDBImages ?: true
+        if (!fetchImagesEnabled) {
             Timber.tag("SteamGridDB").d("Image fetching is disabled in settings")
             return@withContext ImageFetchResult(null, null, null, null, null)
         }

@@ -1,7 +1,7 @@
 package app.gamenative.data
 
 import android.content.Context
-import app.gamenative.PrefManager
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.utils.Net
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -65,13 +65,13 @@ object RecommendationRepository {
             if (fetched != null) {
                 lastFeatured = fetched.featured
                 return@withContext HeroResponse(
-                    recommendation = stableRecommendation(fetched.recommendation),
+                    recommendation = stableRecommendation(context, fetched.recommendation),
                     featured = fetched.featured,
                 )
             }
             // Offline: last stable recommendation (or bundled), no featured.
             HeroResponse(
-                recommendation = loadCachedRecommendation() ?: loadBundledFallback(context),
+                recommendation = loadCachedRecommendation(context) ?: loadBundledFallback(context),
                 featured = null,
             )
         }
@@ -109,21 +109,23 @@ object RecommendationRepository {
      * Keeps the recommendation stable for a day: reuses the cached pick until it goes stale,
      * then adopts (and caches) the freshly fetched one.
      */
-    private fun stableRecommendation(fresh: RecommendedGame?): RecommendedGame? {
-        val cached = loadCachedRecommendation()
-        val cacheAgeMs = System.currentTimeMillis() - PrefManager.recommendationCacheTimestamp
+    private fun stableRecommendation(context: Context, fresh: RecommendedGame?): RecommendedGame? {
+        val prefs = context.preferencesEntryPoint().libraryPreferences()
+        val cached = loadCachedRecommendation(context)
+        val cacheAgeMs = System.currentTimeMillis() - prefs.recommendationCacheTimestamp
         if (cached != null && cacheAgeMs in 0..CACHE_TTL_MS) return cached
 
         if (fresh != null) {
-            PrefManager.recommendationCacheJson = json.encodeToString(fresh)
-            PrefManager.recommendationCacheTimestamp = System.currentTimeMillis()
+            prefs.recommendationCacheJson = json.encodeToString(fresh)
+            prefs.recommendationCacheTimestamp = System.currentTimeMillis()
             return fresh
         }
         return cached
     }
 
-    private fun loadCachedRecommendation(): RecommendedGame? {
-        val cached = PrefManager.recommendationCacheJson
+    private fun loadCachedRecommendation(context: Context): RecommendedGame? {
+        val prefs = context.preferencesEntryPoint().libraryPreferences()
+        val cached = prefs.recommendationCacheJson
         if (cached.isEmpty()) return null
         return try {
             parseRecommendation(cached)

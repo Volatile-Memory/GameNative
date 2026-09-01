@@ -9,12 +9,14 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.data.AppInfo
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.enums.Marker
 import app.gamenative.events.AndroidEvent
+import app.gamenative.preferences.ContainerPreferences
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.preferences.LibraryPreferences
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
 import app.gamenative.service.SteamService.Companion.INVALID_APP_ID
@@ -33,6 +35,15 @@ import kotlin.text.ifEmpty
 
 object CustomGameScanner {
 
+    @Volatile
+    var downloadPreferences: DownloadPreferences? = null
+
+    @Volatile
+    var libraryPreferences: LibraryPreferences? = null
+
+    @Volatile
+    var containerPreferences: ContainerPreferences? = null
+
     // Default root path for Custom Games. Always use the app's external storage sandbox
     // (Android/data/<package>/CustomGames) when available; fall back to internal only if external is unavailable.
     // This ensures the folder is visible via MTP/file managers.
@@ -43,30 +54,11 @@ object CustomGameScanner {
             val externalDir = if (externalBase.isNotEmpty()) File(externalBase, "CustomGames") else null
             val internalDir = File(DownloadService.baseDataDirPath, "CustomGames")
 
-            // Always prefer external location (visible via MTP/file managers) when available
-            // Only fall back to internal if external is truly not available
-            val target = when {
-                externalDir != null -> {
-                    // Always use external if available (it's visible to users via file managers)
-                    // Create parent directory if needed
-                    externalDir.parentFile?.mkdirs()
-                    externalDir
-                }
-
-                else -> {
-                    Timber.tag("CustomGameScanner").w("External storage not available, falling back to internal: ${internalDir.path}")
-                    internalDir
-                }
-            }
+            // Prefer external storage so users can see/manage the folder
+            val target = externalDir ?: internalDir
             if (!target.exists()) {
-                val created = target.mkdirs()
-                if (created) {
-                    Timber.tag("CustomGameScanner").d("Created default CustomGames folder: ${target.path}")
-                } else {
-                    Timber.tag("CustomGameScanner").w("Failed to create default CustomGames folder: ${target.path}")
-                }
+                target.mkdirs()
             }
-            Timber.tag("CustomGameScanner").d("Using default CustomGames path: ${target.path}")
             return target.path
         }
 
@@ -76,8 +68,8 @@ object CustomGameScanner {
      */
     val importRootPath: String
         get() {
-            val external = PrefManager.externalStoragePath
-            if (PrefManager.useExternalStorage && external.isNotBlank() && File(external).isDirectory) {
+            val external = downloadPreferences?.externalStoragePath ?: ""
+            if (downloadPreferences?.useExternalStorage == true && external.isNotBlank() && File(external).isDirectory) {
                 val dir = File(external, "CustomGames")
                 if (StorageUtils.ensureInstallRoot(dir)) return dir.absolutePath
             }
@@ -104,7 +96,7 @@ object CustomGameScanner {
                 StorageUtils.publicInstallRoot(File(appDir))?.let { roots.add(File(it, "CustomGames").absolutePath) }
                 roots.add(File(appDir, "CustomGames").absolutePath)
             }
-            val external = PrefManager.externalStoragePath
+            val external = downloadPreferences?.externalStoragePath ?: ""
             if (external.isNotBlank()) {
                 roots.add(File(external, "CustomGames").absolutePath)
             }
@@ -586,7 +578,7 @@ object CustomGameScanner {
     /** Manually added folders plus every immediate subfolder of the scan roots. */
     private fun candidateFolders(): Set<String> {
         val folders = LinkedHashSet<String>()
-        folders.addAll(PrefManager.customGameManualFolders)
+        folders.addAll(libraryPreferences?.customGameManualFolders ?: emptySet())
         for (root in scanRootPaths) {
             File(root).listFiles { f -> f.isDirectory }?.forEach { folders.add(it.absolutePath) }
         }
@@ -629,13 +621,13 @@ object CustomGameScanner {
             return null
         }
 
-        if (SteamService.instance != null && PrefManager.importCustomGameAsSteamGame) {
+        if (SteamService.instance != null && (libraryPreferences?.importCustomGameAsSteamGame ?: false)) {
             val steamApps = SteamService.findSteamAppWithInstallDir(dirName = folder.name)
             if (steamApps?.size == 1) {
                 val steamApp = steamApps[0]
                 if (SteamService.isAppLicensed(steamApp.packageId)) {
                     if (SteamService.getInstalledApp(steamApp.id) == null) {
-                        val preferredLanguage = PrefManager.containerLanguage
+                        val preferredLanguage = containerPreferences?.containerLanguage ?: "english"
                         val mainDepots = getMainAppDepots(steamApp.id, preferredLanguage)
                         val mainAppDepots = mainDepots.filter { (_, depot) ->
                             depot.dlcAppId == INVALID_APP_ID

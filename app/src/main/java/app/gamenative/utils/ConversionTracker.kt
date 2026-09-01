@@ -1,12 +1,21 @@
 package app.gamenative.utils
 
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
 import com.posthog.PostHog
 import java.util.UUID
 
 object ConversionTracker {
 
-    fun featuredConversion(campaignId: String, actionType: String, appId: Int?, source: String) {
+    @Volatile
+    var preferences: GeneralPreferences? = null
+
+    fun featuredConversion(
+        campaignId: String,
+        actionType: String,
+        appId: Int?,
+        source: String,
+        prefs: GeneralPreferences? = preferences,
+    ) {
         val properties = mutableMapOf<String, Any>(
             "campaign_id" to campaignId,
             "action_type" to actionType,
@@ -14,7 +23,8 @@ object ConversionTracker {
         )
         appId?.let { properties["app_id"] = it }
 
-        if (PrefManager.usageAnalyticsEnabled) {
+        val isUsageAnalyticsEnabled = (prefs ?: preferences)?.usageAnalyticsEnabled ?: false
+        if (isUsageAnalyticsEnabled) {
             PostHog.capture(event = "featured_conversion", properties = properties)
         } else {
             properties["\$process_person_profile"] = false

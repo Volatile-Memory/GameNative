@@ -1,6 +1,6 @@
 package app.gamenative.utils
 
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -276,6 +276,10 @@ object HltbService {
 object HltbCache {
     private const val TTL = 12 * 3_600_000L
     internal const val MAX_ENTRIES = 200
+
+    @Volatile
+    var preferences: GeneralPreferences? = null
+
     private val mem = mutableMapOf<String, HltbService.Stats>()
     private val stamps = mutableMapOf<String, Long>()
     private var loaded = false
@@ -284,11 +288,12 @@ object HltbCache {
     @Serializable data class Entry(val stats: HltbService.Stats, val ts: Long)
 
     @Synchronized
-    private fun load() {
+    private fun load(prefs: GeneralPreferences? = preferences) {
         if (loaded) return
         try {
-            val raw = PrefManager.hltbCache
-            if (raw != "{}") {
+            val targetPrefs = prefs ?: preferences
+            val raw = targetPrefs?.hltbCache ?: "{}"
+            if (raw.isNotEmpty() && raw != "{}") {
                 val now = System.currentTimeMillis()
                 json.decodeFromString<Map<String, Entry>>(raw)
                     .asSequence()
@@ -307,10 +312,13 @@ object HltbCache {
     }
 
     @Synchronized
-    private fun save() {
+    private fun save(prefs: GeneralPreferences? = preferences) {
         try {
             val now = System.currentTimeMillis()
-            PrefManager.hltbCache = json.encodeToString(mem.mapValues { Entry(it.value, stamps[it.key] ?: now) })
+            val targetPrefs = prefs ?: preferences
+            targetPrefs?.let {
+                it.hltbCache = json.encodeToString(mem.mapValues { Entry(it.value, stamps[it.key] ?: now) })
+            }
         } catch (_: Exception) {}
     }
 

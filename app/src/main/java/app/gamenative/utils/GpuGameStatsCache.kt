@@ -1,7 +1,7 @@
 package app.gamenative.utils
 
-import app.gamenative.PrefManager
 import app.gamenative.data.GameSource
+import app.gamenative.preferences.GeneralPreferences
 import app.gamenative.utils.DeviceGameStatsService.DeviceGameStats
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -17,6 +17,9 @@ import timber.log.Timber
  */
 object GpuGameStatsCache {
     private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L // 6 hours
+
+    @Volatile
+    var preferences: GeneralPreferences? = null
 
     private var inMemory: Map<GameSource, Map<String, DeviceGameStats>> = emptyMap()
     private var loadedTimestamp: Long = 0L
@@ -45,10 +48,11 @@ object GpuGameStatsCache {
     )
 
     @Synchronized
-    private fun loadCache() {
+    private fun loadCache(prefs: GeneralPreferences? = preferences) {
         if (cacheLoaded) return
         try {
-            val cacheJson = PrefManager.gpuGameStatsCache
+            val targetPrefs = prefs ?: preferences
+            val cacheJson = targetPrefs?.gpuGameStatsCache ?: ""
             if (cacheJson.isNotEmpty() && cacheJson != "{}") {
                 val cached = Json.decodeFromString<CachedStats>(cacheJson)
                 inMemory = cached.stats.mapNotNull { (platform, games) ->
@@ -65,7 +69,11 @@ object GpuGameStatsCache {
         cacheLoaded = true
     }
 
-    private fun saveCache(data: Map<GameSource, Map<String, DeviceGameStats>>, timestamp: Long) {
+    private fun saveCache(
+        data: Map<GameSource, Map<String, DeviceGameStats>>,
+        timestamp: Long,
+        prefs: GeneralPreferences? = preferences,
+    ) {
         try {
             val serializable = CachedStats(
                 stats = data.entries.associate { (source, games) ->
@@ -73,7 +81,8 @@ object GpuGameStatsCache {
                 },
                 timestamp = timestamp,
             )
-            PrefManager.gpuGameStatsCache = Json.encodeToString(serializable)
+            val targetPrefs = prefs ?: preferences
+            targetPrefs?.let { it.gpuGameStatsCache = Json.encodeToString(serializable) }
             Timber.tag("GpuGameStatsCache").d("Saved ${data.values.sumOf { it.size }} game stats to persistent storage")
         } catch (e: Exception) {
             Timber.tag("GpuGameStatsCache").e(e, "Failed to save cache to persistent storage")
@@ -114,10 +123,11 @@ object GpuGameStatsCache {
     }
 
     /** Clears the entire cache (both memory and persistent storage). */
-    fun clear() {
+    fun clear(prefs: GeneralPreferences? = preferences) {
         inMemory = emptyMap()
         loadedTimestamp = 0L
-        PrefManager.gpuGameStatsCache = "{}"
+        val targetPrefs = prefs ?: preferences
+        targetPrefs?.let { it.gpuGameStatsCache = "{}" }
         Timber.tag("GpuGameStatsCache").d("Cache cleared")
     }
 }

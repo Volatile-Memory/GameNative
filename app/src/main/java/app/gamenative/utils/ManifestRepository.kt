@@ -2,7 +2,8 @@ package app.gamenative.utils
 
 import android.content.Context
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
+import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.preferences.preferencesEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -14,7 +15,13 @@ object ManifestRepository {
     private const val MANIFEST_URL = "https://raw.githubusercontent.com/utkarshdalal/GameNative/refs/heads/master/manifest.json"
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun loadManifest(context: Context): ManifestData {
+    @Volatile
+    var preferences: GeneralPreferences? = null
+
+    suspend fun loadManifest(
+        context: Context,
+        prefs: GeneralPreferences? = preferences,
+    ): ManifestData {
         if (BuildConfig.DEBUG) {
             readLocalManifest(context)?.let {
                 Timber.i("ManifestRepository: using local debug manifest")
@@ -22,9 +29,10 @@ object ManifestRepository {
             }
         }
 
-        val cachedJson = PrefManager.componentManifestJson
+        val targetPrefs = prefs ?: context.preferencesEntryPoint().generalPreferences().also { preferences = it }
+        val cachedJson = targetPrefs.componentManifestJson
         val cachedManifest = parseManifest(cachedJson) ?: ManifestData.empty()
-        val lastFetchedAt = PrefManager.componentManifestFetchedAt
+        val lastFetchedAt = targetPrefs.componentManifestFetchedAt
         val isStale = System.currentTimeMillis() - lastFetchedAt >= ONE_DAY_MS
 
         if (cachedJson.isNotEmpty() && !isStale) {
@@ -36,8 +44,8 @@ object ManifestRepository {
             val parsed = parseManifest(fetched)
             if (parsed != null) {
                 val now = System.currentTimeMillis()
-                PrefManager.componentManifestJson = fetched
-                PrefManager.componentManifestFetchedAt = now
+                targetPrefs.componentManifestJson = fetched
+                targetPrefs.componentManifestFetchedAt = now
                 return parsed
             }
         }

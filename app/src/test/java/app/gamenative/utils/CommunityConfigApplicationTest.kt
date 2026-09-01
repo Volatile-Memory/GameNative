@@ -2,9 +2,9 @@ package app.gamenative.utils
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import app.gamenative.PrefManager
 import app.gamenative.api.prepareCommunityConfigForApply
 import app.gamenative.api.sanitizeCommunityConfig
+import app.gamenative.preferences.PreferencesEntryPoint
 import com.winlator.container.ContainerData
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -80,7 +80,6 @@ class CommunityConfigApplicationTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        PrefManager.init(context)
 
         val workingDir = File(requireNotNull(System.getProperty("user.dir")))
         val manifestFile = listOf(
@@ -88,8 +87,8 @@ class CommunityConfigApplicationTest {
             File(workingDir.parentFile, "manifest.json"),
         ).firstOrNull { it.exists() }
         if (manifestFile != null) {
-            PrefManager.componentManifestJson = manifestFile.readText()
-            PrefManager.componentManifestFetchedAt = System.currentTimeMillis()
+            PreferencesEntryPoint.get(context).generalPreferences().componentManifestJson = manifestFile.readText()
+            PreferencesEntryPoint.get(context).generalPreferences().componentManifestFetchedAt = System.currentTimeMillis()
         }
     }
 

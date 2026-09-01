@@ -2,7 +2,6 @@ package app.gamenative.utils.downloader
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import app.gamenative.PrefManager
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.After
@@ -28,7 +27,6 @@ class WinComponentDownloaderTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        PrefManager.init(context)
         cacheDir = File(context.filesDir, WinComponentDownloader.WINCOMPONENTS_CACHE_DIR)
 
         // Clean up any existing cache
