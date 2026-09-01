@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -36,8 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import app.gamenative.PrefManager
 import app.gamenative.R
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.ui.icons.InputIcons
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.shouldShowGamepadUI
@@ -118,8 +119,9 @@ fun GamepadActionBar(
     modifier: Modifier = Modifier,
     visible: Boolean = true,
 ) {
+    val context = LocalContext.current
     val showGamepadUI = shouldShowGamepadUI()
-    val swapFaceButtons = PrefManager.swapFaceButtons
+    val swapFaceButtons = remember(context) { context.preferencesEntryPoint().inputPreferences().swapFaceButtons }
 
     AnimatedVisibility(
         visible = visible && actions.isNotEmpty() && showGamepadUI,
@@ -194,8 +196,6 @@ object LibraryActions {
 )
 @Composable
 private fun Preview_GamepadActionBar() {
-    val context = LocalContext.current
-    PrefManager.init(context)
     PluviaTheme {
         Surface(modifier = Modifier.fillMaxWidth()) {
             Box(

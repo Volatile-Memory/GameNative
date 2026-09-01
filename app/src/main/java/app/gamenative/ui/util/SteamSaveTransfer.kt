@@ -2,10 +2,11 @@ package app.gamenative.ui.util
 
 import android.content.Context
 import android.net.Uri
-import app.gamenative.PrefManager
+import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.data.SaveFilePattern
 import app.gamenative.enums.PathType
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.service.SteamService
 import app.gamenative.utils.FileUtils
 import com.winlator.container.Container
@@ -364,7 +365,8 @@ object SteamSaveTransfer {
 
     private fun resolveSteamAccountId(container: Container, appId: Int): Long? {
         SteamService.userSteamId?.accountID?.toLong()?.let { return it }
-        PrefManager.steamUserAccountId.takeIf { it != 0 }?.toLong()?.let { return it }
+        val authPrefs = PluviaApp.instance?.let { PreferencesEntryPoint.get(it).authPreferences() }
+        authPrefs?.steamUserAccountId?.takeIf { it != 0 }?.toLong()?.let { return it }
 
         val userdataRoot = Paths.get(
             container.rootDir.absolutePath,

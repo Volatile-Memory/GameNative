@@ -42,7 +42,7 @@ import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.service.DownloadService
@@ -75,6 +75,7 @@ private fun calculateInstalledCount(context: android.content.Context, state: Lib
         return state.totalAppsInFilter
     }
 
+    val libraryPrefs = PreferencesEntryPoint.get(context).libraryPreferences()
     val downloadDirectoryApps = DownloadService.getDownloadDirectoryApps()
 
     val steamCount = if (state.showSteamInLibrary) {
@@ -84,25 +85,25 @@ private fun calculateInstalledCount(context: android.content.Context, state: Lib
     }
 
     val customGameCount = if (state.showCustomGamesInLibrary) {
-        PrefManager.customGamesCount
+        libraryPrefs.customGamesCount
     } else {
         0
     }
 
     val gogCount = if (state.showGOGInLibrary && GOGService.hasStoredCredentials(context)) {
-        PrefManager.gogInstalledGamesCount
+        libraryPrefs.gogInstalledGamesCount
     } else {
         0
     }
 
     val epicCount = if (state.showEpicInLibrary && EpicService.hasStoredCredentials(context)) {
-        PrefManager.epicInstalledGamesCount
+        libraryPrefs.epicInstalledGamesCount
     } else {
         0
     }
 
     val amazonCount = if (state.showAmazonInLibrary && AmazonService.hasStoredCredentials(context)) {
-        PrefManager.amazonInstalledGamesCount
+        libraryPrefs.amazonInstalledGamesCount
     } else {
         0
     }
@@ -220,11 +221,12 @@ internal fun LibraryListPane(
             }
 
             val totalSkeletonCount = remember(state.showSteamInLibrary, state.showCustomGamesInLibrary, state.showGOGInLibrary, state.showEpicInLibrary, state.showAmazonInLibrary) {
-                val customCount = if (state.showCustomGamesInLibrary) PrefManager.customGamesCount else 0
-                val steamCount = if (state.showSteamInLibrary) PrefManager.steamGamesCount else 0
-                val gogInstalledCount = if (state.showGOGInLibrary && GOGService.hasStoredCredentials(context)) PrefManager.gogInstalledGamesCount else 0
-                val epicInstalledCount = if (state.showEpicInLibrary && EpicService.hasStoredCredentials(context)) PrefManager.epicInstalledGamesCount else 0
-                val amazonInstalledCount = if (state.showAmazonInLibrary && AmazonService.hasStoredCredentials(context)) PrefManager.amazonInstalledGamesCount else 0
+                val libraryPrefs = PreferencesEntryPoint.get(context).libraryPreferences()
+                val customCount = if (state.showCustomGamesInLibrary) libraryPrefs.customGamesCount else 0
+                val steamCount = if (state.showSteamInLibrary) libraryPrefs.steamGamesCount else 0
+                val gogInstalledCount = if (state.showGOGInLibrary && GOGService.hasStoredCredentials(context)) libraryPrefs.gogInstalledGamesCount else 0
+                val epicInstalledCount = if (state.showEpicInLibrary && EpicService.hasStoredCredentials(context)) libraryPrefs.epicInstalledGamesCount else 0
+                val amazonInstalledCount = if (state.showAmazonInLibrary && AmazonService.hasStoredCredentials(context)) libraryPrefs.amazonInstalledGamesCount else 0
                 val total = customCount + steamCount + gogInstalledCount + epicInstalledCount + amazonInstalledCount
                 Timber.tag("LibraryListPane").d("Skeleton calculation - Custom: $customCount, Steam: $steamCount, GOG installed: $gogInstalledCount, Epic installed: $epicInstalledCount, Amazon installed: $amazonInstalledCount, Total: $total")
                 if (total == 0) 6 else minOf(total, 20)
@@ -367,8 +369,6 @@ internal fun LibraryListPane(
 @Preview(device = "spec:width=1920px,height=1080px,dpi=440") // Odin2 Mini
 @Composable
 private fun Preview_LibraryListPane() {
-    val context = LocalContext.current
-    PrefManager.init(context)
     val state = remember {
         LibraryState(
             appInfoList = List(15) { idx ->

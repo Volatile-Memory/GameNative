@@ -10,7 +10,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.LibraryItem
 import app.gamenative.events.AndroidEvent
@@ -518,9 +518,10 @@ class CustomGameAppScreen : BaseAppScreen() {
                                             if (CustomGameScanner.isManagedFolder(folderPath)) {
                                                 File(folderPath).deleteRecursively()
                                             }
-                                            val manualFolders = PrefManager.customGameManualFolders.toMutableSet()
+                                            val libraryPrefs = PreferencesEntryPoint.get(context).libraryPreferences()
+                                            val manualFolders = libraryPrefs.customGameManualFolders.toMutableSet()
                                             manualFolders.remove(folderPath)
-                                            PrefManager.customGameManualFolders = manualFolders
+                                            libraryPrefs.customGameManualFolders = manualFolders
                                         }
                                         CustomGameScanner.invalidateCache()
                                     }

@@ -19,8 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import app.gamenative.PrefManager
 import app.gamenative.R
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.ui.theme.PluviaTheme
 import java.util.EnumSet
@@ -34,13 +34,16 @@ fun OrientationDialog(
         return
     }
 
+    val context = LocalContext.current
+    val generalPreferences = remember(context) { context.preferencesEntryPoint().generalPreferences() }
+
     var currentSettings by remember {
-        mutableStateOf(PrefManager.allowedOrientation.toList())
+        mutableStateOf(generalPreferences.allowedOrientation.toList())
     }
 
     // Save on close.
     val onClose: () -> Unit = {
-        PrefManager.allowedOrientation = EnumSet.copyOf(currentSettings)
+        generalPreferences.allowedOrientation = EnumSet.copyOf(currentSettings)
         onDismiss()
     }
 
@@ -90,8 +93,6 @@ fun OrientationDialog(
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun Preview_ProfileDialog() {
-    val content = LocalContext.current
-    PrefManager.init(content)
     PluviaTheme {
         OrientationDialog(
             openDialog = true,

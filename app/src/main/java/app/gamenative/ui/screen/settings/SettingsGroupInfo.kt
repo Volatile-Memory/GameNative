@@ -9,10 +9,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import app.gamenative.Constants
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.ui.component.dialog.LibrariesDialog
 import app.gamenative.ui.theme.settingsTileColors
@@ -23,9 +26,17 @@ import com.alorma.compose.settings.ui.SettingsSwitch
 
 @Composable
 fun SettingsGroupInfo() {
+    val context = LocalContext.current
+    val isPreview = LocalInspectionMode.current
+    val generalPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).generalPreferences()
+    }
+
     SettingsGroup() {
         val uriHandler = LocalUriHandler.current
-        var askForTip by rememberSaveable { mutableStateOf(!PrefManager.tipped) }
+        var askForTip by rememberSaveable {
+            mutableStateOf(if (isPreview) false else !(generalPrefs?.tipped ?: false))
+        }
         var showLibrariesDialog by rememberSaveable { mutableStateOf(false) }
 
         LibrariesDialog(
@@ -50,7 +61,9 @@ fun SettingsGroupInfo() {
             subtitle = { Text(text = stringResource(R.string.settings_info_ask_tip_subtitle)) },
             onCheckedChange = {
                 askForTip = it
-                PrefManager.tipped = !askForTip
+                if (!isPreview) {
+                    generalPrefs?.tipped = !askForTip
+                }
             },
         )
 
@@ -77,7 +90,9 @@ fun SettingsGroupInfo() {
             },
         )
 
-        var usageAnalytics by rememberSaveable { mutableStateOf(PrefManager.usageAnalyticsEnabled) }
+        var usageAnalytics by rememberSaveable {
+            mutableStateOf(if (isPreview) false else generalPrefs?.usageAnalyticsEnabled ?: false)
+        }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             state = usageAnalytics,
@@ -85,7 +100,9 @@ fun SettingsGroupInfo() {
             subtitle = { Text(text = stringResource(R.string.settings_info_usage_analytics_subtitle)) },
             onCheckedChange = {
                 usageAnalytics = it
-                PrefManager.usageAnalyticsEnabled = it
+                if (!isPreview) {
+                    generalPrefs?.usageAnalyticsEnabled = it
+                }
             },
         )
     }

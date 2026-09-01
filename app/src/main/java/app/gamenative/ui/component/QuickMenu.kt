@@ -90,12 +90,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import app.gamenative.PrefManager
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.powercontrol.PowerManager
 import app.gamenative.ui.component.quickMenus.PowerControlQuickMenuTab
@@ -471,6 +472,9 @@ fun QuickMenu(
     // broken D8 codegen path).
     val inviteMenu = remember(container?.id) { SteamInviteState.createIfAvailable(container) }
     // Owned here, not plumbed through XServerScreen (register limit; see inviteMenu).
+    val context = LocalContext.current
+    val hudPreferences = remember(context) { context.preferencesEntryPoint().hudPreferences() }
+
     var lsfgPresentMode by remember(container?.id) {
         mutableStateOf(container?.let { app.gamenative.utils.LsfgQuickMenuHelper.presentMode(it) } ?: "mailbox")
     }
@@ -478,11 +482,11 @@ fun QuickMenu(
     var selectedTab by rememberSaveable {
         mutableIntStateOf(
             when {
-                PrefManager.quickMenuLastTab == QuickMenuTab.LSFG && !isLsfgAvailable -> QuickMenuTab.HUD
-                PrefManager.quickMenuLastTab == QuickMenuTab.INVITE && inviteMenu == null -> QuickMenuTab.HUD
-                PrefManager.quickMenuLastTab == QuickMenuTab.POWER -> QuickMenuTab.HUD
-                PrefManager.quickMenuLastTab == QuickMenuTab.IMMERSIVE && immersiveControls == null -> QuickMenuTab.HUD
-                else -> PrefManager.quickMenuLastTab
+                hudPreferences.quickMenuLastTab == QuickMenuTab.LSFG && !isLsfgAvailable -> QuickMenuTab.HUD
+                hudPreferences.quickMenuLastTab == QuickMenuTab.INVITE && inviteMenu == null -> QuickMenuTab.HUD
+                hudPreferences.quickMenuLastTab == QuickMenuTab.POWER -> QuickMenuTab.HUD
+                hudPreferences.quickMenuLastTab == QuickMenuTab.IMMERSIVE && immersiveControls == null -> QuickMenuTab.HUD
+                else -> hudPreferences.quickMenuLastTab
             }
         )
     }
@@ -523,7 +527,7 @@ fun QuickMenu(
             while (true) {
                 if (!isVisible && inviteMenu.consumeGameInviteRequest()) {
                     selectedTab = QuickMenuTab.INVITE
-                    PrefManager.quickMenuLastTab = selectedTab
+                    hudPreferences.quickMenuLastTab = selectedTab
                     SteamInviteState.openedForGameRequest = true
                     onRequestOpen()
                 }
@@ -601,7 +605,7 @@ fun QuickMenu(
                 availableTabs[(currentIndex - 1 + availableTabs.size) % availableTabs.size]
             }
             selectedTab = nextTab
-            PrefManager.quickMenuLastTab = nextTab
+            hudPreferences.quickMenuLastTab = nextTab
         }
     }
 
@@ -630,7 +634,7 @@ fun QuickMenu(
                 }
                 if (nextTab != null) {
                     selectedTab = nextTab
-                    PrefManager.quickMenuLastTab = nextTab
+                    hudPreferences.quickMenuLastTab = nextTab
                     true
                 } else {
                     false
@@ -744,7 +748,7 @@ fun QuickMenu(
                                     accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = {
                                         selectedTab = QuickMenuTab.HUD
-                                        PrefManager.quickMenuLastTab = selectedTab
+                                        hudPreferences.quickMenuLastTab = selectedTab
                                     },
                                     modifier = Modifier.width(56.dp),
                                     focusRequester = hudTabFocusRequester,
@@ -756,7 +760,7 @@ fun QuickMenu(
                                     accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = {
                                         selectedTab = QuickMenuTab.POWER
-                                        PrefManager.quickMenuLastTab = selectedTab
+                                        hudPreferences.quickMenuLastTab = selectedTab
                                     },
                                     modifier = Modifier.width(56.dp),
                                     focusRequester = powerTabFocusRequester,
@@ -769,7 +773,7 @@ fun QuickMenu(
                                         accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             selectedTab = QuickMenuTab.LSFG
-                                            PrefManager.quickMenuLastTab = selectedTab
+                                            hudPreferences.quickMenuLastTab = selectedTab
                                         },
                                         modifier = Modifier.width(56.dp),
                                         focusRequester = lsfgTabFocusRequester,
@@ -783,7 +787,7 @@ fun QuickMenu(
                                         accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             selectedTab = QuickMenuTab.INVITE
-                                            PrefManager.quickMenuLastTab = selectedTab
+                                            hudPreferences.quickMenuLastTab = selectedTab
                                         },
                                         modifier = Modifier.width(56.dp),
                                         focusRequester = inviteTabFocusRequester,
@@ -797,7 +801,7 @@ fun QuickMenu(
                                         accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             selectedTab = QuickMenuTab.EFFECTS
-                                            PrefManager.quickMenuLastTab = selectedTab
+                                            hudPreferences.quickMenuLastTab = selectedTab
                                         },
                                         modifier = Modifier.width(56.dp),
                                         focusRequester = effectsTabFocusRequester,
@@ -810,7 +814,7 @@ fun QuickMenu(
                                     accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = {
                                         selectedTab = QuickMenuTab.CONTROLLER
-                                        PrefManager.quickMenuLastTab = selectedTab
+                                        hudPreferences.quickMenuLastTab = selectedTab
                                     },
                                     modifier = Modifier.width(56.dp),
                                     focusRequester = controllerTabFocusRequester,
@@ -832,7 +836,7 @@ fun QuickMenu(
                                         accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             selectedTab = QuickMenuTab.IMMERSIVE
-                                            PrefManager.quickMenuLastTab = selectedTab
+                                            hudPreferences.quickMenuLastTab = selectedTab
                                         },
                                         modifier = Modifier.width(56.dp),
                                         focusRequester = immersiveTabFocusRequester,
@@ -1203,6 +1207,8 @@ private fun PerformanceHudQuickMenuTab(
     modifier: Modifier = Modifier,
 ) {
     val accentColor = PluviaTheme.colors.accentPurple
+    val context = LocalContext.current
+    val hudPreferences = remember(context) { context.preferencesEntryPoint().hudPreferences() }
 
     Column(
         modifier = modifier
@@ -1534,25 +1540,25 @@ private fun PerformanceHudQuickMenuTab(
             accentColor = accentColor,
         )
         if (PowerManager.isFanControlAvailable()) {
-            var showFan by remember { mutableStateOf(PrefManager.showPerformanceHudFan) }
+            var showFan by remember { mutableStateOf(hudPreferences.showPerformanceHudFan) }
             QuickMenuToggleRow(
                 title = stringResource(R.string.power_control_hud_show_fan),
                 enabled = showFan,
                 onToggle = {
                     showFan = !showFan
-                    PrefManager.showPerformanceHudFan = showFan
+                    hudPreferences.showPerformanceHudFan = showFan
                 },
                 accentColor = accentColor,
             )
         }
         if (PowerManager.isClusterTuningAvailable()) {
-            var showTunerCaps by remember { mutableStateOf(PrefManager.showPerformanceHudTunerCaps) }
+            var showTunerCaps by remember { mutableStateOf(hudPreferences.showPerformanceHudTunerCaps) }
             QuickMenuToggleRow(
                 title = stringResource(R.string.power_control_hud_show_tuner),
                 enabled = showTunerCaps,
                 onToggle = {
                     showTunerCaps = !showTunerCaps
-                    PrefManager.showPerformanceHudTunerCaps = showTunerCaps
+                    hudPreferences.showPerformanceHudTunerCaps = showTunerCaps
                 },
                 accentColor = accentColor,
             )

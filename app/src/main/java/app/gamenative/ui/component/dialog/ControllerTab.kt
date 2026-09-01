@@ -6,9 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import app.gamenative.PrefManager
 import app.gamenative.R
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.theme.settingsTileColors
 import app.gamenative.ui.theme.settingsTileColorsAlt
@@ -18,9 +19,11 @@ import com.winlator.container.Container
 
 @Composable
 fun ControllerTabContent(state: ContainerConfigState, default: Boolean) {
+    val context = LocalContext.current
+    val inputPreferences = remember(context) { context.preferencesEntryPoint().inputPreferences() }
     val config = state.config.value
     var showControllerDebugMenu by remember {
-        mutableStateOf(PrefManager.showControllerDebugMenu)
+        mutableStateOf(inputPreferences.showControllerDebugMenu)
     }
 
     SettingsGroup() {
@@ -66,7 +69,7 @@ fun ControllerTabContent(state: ContainerConfigState, default: Boolean) {
             state = showControllerDebugMenu,
             onCheckedChange = {
                 showControllerDebugMenu = it
-                PrefManager.showControllerDebugMenu = it
+                inputPreferences.showControllerDebugMenu = it
             },
         )
         SettingsListDropdown(

@@ -10,7 +10,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.gamenative.BuildConfig
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.FavoritesManager
 import app.gamenative.data.FavoritesRepository
@@ -34,6 +33,8 @@ import app.gamenative.db.dao.SteamAppDao
 import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.EpicGameDao
 import app.gamenative.db.dao.AmazonGameDao
+import app.gamenative.preferences.AuthPreferences
+import app.gamenative.preferences.LibraryPreferences
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
 import app.gamenative.service.amazon.AmazonArtwork
@@ -96,9 +97,23 @@ class LibraryViewModel @Inject constructor(
     private val amazonGameDao: AmazonGameDao,
     @ApplicationContext private val context: Context,
     private val favoritesRepository: FavoritesRepository,
+    private val libraryPreferences: LibraryPreferences,
+    private val authPreferences: AuthPreferences,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(LibraryState(isLoading = true))
+    private val _state = MutableStateFlow(
+        LibraryState(
+            isLoading = true,
+            appInfoSortType = libraryPreferences.libraryFilter,
+            showSteamInLibrary = libraryPreferences.showSteamInLibrary,
+            showCustomGamesInLibrary = libraryPreferences.showCustomGamesInLibrary,
+            showGOGInLibrary = libraryPreferences.showGOGInLibrary,
+            showEpicInLibrary = libraryPreferences.showEpicInLibrary,
+            showAmazonInLibrary = libraryPreferences.showAmazonInLibrary,
+            selectedSteamCollectionIds = libraryPreferences.librarySteamCollections,
+            currentSortOption = libraryPreferences.librarySortOption,
+        ),
+    )
     val state: StateFlow<LibraryState> = _state.asStateFlow()
 
     // Keep the library scroll state. This will last longer as the VM will stay alive.
@@ -117,7 +132,7 @@ class LibraryViewModel @Inject constructor(
     private val onRecommendationToggleChanged: (AndroidEvent.RecommendationToggleChanged) -> Unit = {
         // Consent granted from the frosted teaser: show a loading spinner on the card
         // until the refresh below swaps in the personalized pick.
-        if (cachedRecTeaser && PrefManager.recDisclosureShown) {
+        if (cachedRecTeaser && libraryPreferences.recDisclosureShown) {
             cachedRecLoading = true
             onFilterApps(paginationCurrentPage)
         }
@@ -293,7 +308,7 @@ class LibraryViewModel @Inject constructor(
                 val current = _state.value.selectedSteamCollectionIds
                 val recon = SteamCollectionFilter.reconcile(current, collections)
                 if (recon.removedAny) {
-                    PrefManager.librarySteamCollections = recon.cleaned
+                    libraryPreferences.librarySteamCollections = recon.cleaned
                 }
                 _state.update {
                     it.copy(
@@ -329,7 +344,7 @@ class LibraryViewModel @Inject constructor(
                 // A live featured takes the slot (still gated by the showRecommendations
                 // toggle at display time), regardless of GOG consent.
                 hero.featured != null -> null
-                PrefManager.showRecommendations && PrefManager.recDisclosureShown -> runCatching {
+                libraryPreferences.showRecommendations && libraryPreferences.recDisclosureShown -> runCatching {
                     val owned = GogSeedCollector.collect(
                         context,
                         libraryPlayHistoryDao,
@@ -345,10 +360,10 @@ class LibraryViewModel @Inject constructor(
             // Frosted teaser: pre-consent only, never over a featured slot. Shows every day
             // until the first "Not now", then one day in three. A frosted day stays frosted
             // all day, dismissed or not.
-            val dismissedDay = PrefManager.recTeaserDismissedDay
+            val dismissedDay = libraryPreferences.recTeaserDismissedDay
             cachedRecTeaser = hero.featured == null &&
-                PrefManager.showRecommendations &&
-                !PrefManager.recDisclosureShown &&
+                libraryPreferences.showRecommendations &&
+                !libraryPreferences.recDisclosureShown &&
                 (dismissedDay == 0L || dismissedDay == daySeed || daySeed % 3 == 0L)
             cachedRecLoading = false
             onFilterApps(paginationCurrentPage)
@@ -379,28 +394,28 @@ class LibraryViewModel @Inject constructor(
         when (source) {
             GameSource.STEAM -> {
                 val newValue = !current.showSteamInLibrary
-                PrefManager.showSteamInLibrary = newValue
+                libraryPreferences.showSteamInLibrary = newValue
                 _state.update { it.copy(showSteamInLibrary = newValue) }
             }
 
             GameSource.CUSTOM_GAME -> {
                 val newValue = !current.showCustomGamesInLibrary
-                PrefManager.showCustomGamesInLibrary = newValue
+                libraryPreferences.showCustomGamesInLibrary = newValue
                 _state.update { it.copy(showCustomGamesInLibrary = newValue) }
             }
             GameSource.GOG -> {
                 val newValue = !current.showGOGInLibrary
-                PrefManager.showGOGInLibrary = newValue
+                libraryPreferences.showGOGInLibrary = newValue
                 _state.update { it.copy(showGOGInLibrary = newValue) }
             }
             GameSource.EPIC -> {
                 val newValue = !current.showEpicInLibrary
-                PrefManager.showEpicInLibrary = newValue
+                libraryPreferences.showEpicInLibrary = newValue
                 _state.update { it.copy(showEpicInLibrary = newValue) }
             }
             GameSource.AMAZON -> {
                 val newValue = !current.showAmazonInLibrary
-                PrefManager.showAmazonInLibrary = newValue
+                libraryPreferences.showAmazonInLibrary = newValue
                 _state.update { it.copy(showAmazonInLibrary = newValue) }
             }
         }
@@ -408,7 +423,7 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun onSortOptionChanged(sortOption: SortOption) {
-        PrefManager.librarySortOption = sortOption
+        libraryPreferences.librarySortOption = sortOption
         _state.update { it.copy(currentSortOption = sortOption) }
         onFilterApps()
     }
@@ -466,7 +481,7 @@ class LibraryViewModel @Inject constructor(
                 updatedFilter.add(value)
             }
 
-            PrefManager.libraryFilter = updatedFilter
+            libraryPreferences.libraryFilter = updatedFilter
 
             currentState.copy(appInfoSortType = updatedFilter)
         }
@@ -478,7 +493,7 @@ class LibraryViewModel @Inject constructor(
         _state.update { currentState ->
             val updated = currentState.selectedSteamCollectionIds.toMutableSet()
             if (!updated.add(id)) updated.remove(id)
-            PrefManager.librarySteamCollections = updated
+            libraryPreferences.librarySteamCollections = updated
             currentState.copy(selectedSteamCollectionIds = updated)
         }
         onFilterApps()
@@ -486,7 +501,7 @@ class LibraryViewModel @Inject constructor(
 
     fun onClearSteamCollections() {
         _state.update { currentState ->
-            PrefManager.librarySteamCollections = emptySet()
+            libraryPreferences.librarySteamCollections = emptySet()
             currentState.copy(selectedSteamCollectionIds = emptySet())
         }
         onFilterApps()
@@ -597,10 +612,10 @@ class LibraryViewModel @Inject constructor(
                 return@launch
             }
 
-            val manualFolders = PrefManager.customGameManualFolders.toMutableSet()
+            val manualFolders = libraryPreferences.customGameManualFolders.toMutableSet()
             if (!manualFolders.contains(normalizedPath)) {
                 manualFolders.add(normalizedPath)
-                PrefManager.customGameManualFolders = manualFolders
+                libraryPreferences.customGameManualFolders = manualFolders
             }
 
             CustomGameScanner.invalidateCache()
@@ -691,7 +706,7 @@ class LibraryViewModel @Inject constructor(
                     if (currentState.appInfoSortType.contains(AppFilter.SHARED)) {
                         true
                     } else {
-                        item.ownerAccountId.contains(PrefManager.steamUserAccountId) || PrefManager.steamUserAccountId == 0
+                        item.ownerAccountId.contains(authPreferences.steamUserAccountId) || authPreferences.steamUserAccountId == 0
                     }
                 }
                 .filter { item ->
@@ -783,7 +798,7 @@ class LibraryViewModel @Inject constructor(
                         capsuleImageUrl = item.getCapsuleUrl(),
                         headerImageUrl = item.headerUrl,
                         heroImageUrl = item.getHeroUrl(),
-                        isShared = (PrefManager.steamUserAccountId != 0 && !item.ownerAccountId.contains(PrefManager.steamUserAccountId)),
+                        isShared = (authPreferences.steamUserAccountId != 0 && !item.ownerAccountId.contains(authPreferences.steamUserAccountId)),
                         sizeBytes = totalSizeBytes,
                     ),
                     isInstalled = isInstalled,
@@ -944,13 +959,13 @@ class LibraryViewModel @Inject constructor(
             // Save game counts for skeleton loaders (only when not searching, to get accurate counts)
             // This needs to happen before filtering by source, so we save the total counts
             if (currentState.searchQuery.isEmpty()) {
-                PrefManager.customGamesCount = customGameItems.size
-                PrefManager.steamGamesCount = steamFilteredBeforeCompatibility.size
-                PrefManager.gogGamesCount = filteredGOGGames.size
-                PrefManager.gogInstalledGamesCount = gogInstalledCount
-                PrefManager.epicGamesCount = filteredEpicGames.size
-                PrefManager.epicInstalledGamesCount = epicInstalledCount
-                PrefManager.amazonInstalledGamesCount = amazonInstalledCount
+                libraryPreferences.customGamesCount = customGameItems.size
+                libraryPreferences.steamGamesCount = steamFilteredBeforeCompatibility.size
+                libraryPreferences.gogGamesCount = filteredGOGGames.size
+                libraryPreferences.gogInstalledGamesCount = gogInstalledCount
+                libraryPreferences.epicGamesCount = filteredEpicGames.size
+                libraryPreferences.epicInstalledGamesCount = epicInstalledCount
+                libraryPreferences.amazonInstalledGamesCount = amazonInstalledCount
                 Timber.tag("LibraryViewModel").d("Saved counts - Custom: ${customGameItems.size}, Steam: ${steamFilteredBeforeCompatibility.size}, GOG: ${filteredGOGGames.size}, GOG installed: $gogInstalledCount, Epic: ${filteredEpicGames.size}, Epic installed: $epicInstalledCount, Amazon installed: $amazonInstalledCount")
             }
 
@@ -1056,7 +1071,7 @@ class LibraryViewModel @Inject constructor(
             val totalFound = combined.size
 
             // Determine how many pages and slice the list for incremental loading
-            val pageSize = PrefManager.itemsPerPage
+            val pageSize = libraryPreferences.itemsPerPage
             lastPageInCurrentFilter = if (totalFound == 0) 0 else (totalFound - 1) / pageSize
             // Clamp the requested page to the valid range. Removing favorites (or any other filter
             // change) can shrink the list so the previously shown page no longer exists; without
@@ -1072,7 +1087,7 @@ class LibraryViewModel @Inject constructor(
             // enabled and not searching.
             val featured = cachedFeatured
             val rec = cachedRecommendation
-            if (PrefManager.showRecommendations
+            if (libraryPreferences.showRecommendations
                 && currentTab == LibraryTab.ALL
                 && currentState.searchQuery.isEmpty()
             ) {

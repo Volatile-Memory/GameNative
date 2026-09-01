@@ -31,7 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.enums.AppTheme
 import app.gamenative.ui.theme.PluviaTheme
@@ -99,9 +98,6 @@ fun SingleChoiceDialog(
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun Preview_SingleChoiceDialog() {
-    val content = LocalContext.current
-    PrefManager.init(content)
-
     val list = remember { AppTheme.entries }
     var theme by remember { mutableStateOf(AppTheme.NIGHT) }
 

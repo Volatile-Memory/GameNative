@@ -41,7 +41,8 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import app.gamenative.BuildConfig
 import app.gamenative.R
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
+import app.gamenative.ui.enums.HomeDestination
 import app.gamenative.enums.AppTheme
 import app.gamenative.ui.component.dialog.SingleChoiceDialog
 import app.gamenative.ui.theme.settingsTileColorsAlt
@@ -134,28 +135,58 @@ fun SettingsGroupInterface(
     onPaletteStyle: (PaletteStyle) -> Unit,
 ) {
     val context = LocalContext.current
+    val isPreview = LocalInspectionMode.current
+    val generalPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).generalPreferences()
+    }
+    val inputPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).inputPreferences()
+    }
+    val authPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).authPreferences()
+    }
+    val libraryPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).libraryPreferences()
+    }
+    val downloadPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).downloadPreferences()
+    }
 
-    var openWebLinks by rememberSaveable { mutableStateOf(PrefManager.openWebLinksExternally) }
+    var openWebLinks by rememberSaveable {
+        mutableStateOf(if (isPreview) false else generalPrefs?.openWebLinksExternally ?: false)
+    }
 
     var openAppThemeDialog by rememberSaveable { mutableStateOf(false) }
     var openAppPaletteDialog by rememberSaveable { mutableStateOf(false) }
 
     var openStartScreenDialog by rememberSaveable { mutableStateOf(false) }
-    var startScreenOption by rememberSaveable(openStartScreenDialog) { mutableStateOf(PrefManager.startScreen) }
+    var startScreenOption by rememberSaveable(openStartScreenDialog) {
+        mutableStateOf(if (isPreview) HomeDestination.Library else generalPrefs?.startScreen ?: HomeDestination.Library)
+    }
 
     // Status bar hide/show confirmation dialog
     var showStatusBarRestartDialog by rememberSaveable { mutableStateOf(false) }
     var pendingStatusBarValue by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var showStatusBarLoadingDialog by rememberSaveable { mutableStateOf(false) }
-    var hideStatusBar by rememberSaveable { mutableStateOf(PrefManager.hideStatusBarWhenNotInGame) }
-    var swapFaceButtons by rememberSaveable { mutableStateOf(PrefManager.swapFaceButtons) }
+    var hideStatusBar by rememberSaveable {
+        mutableStateOf(if (isPreview) false else generalPrefs?.hideStatusBarWhenNotInGame ?: false)
+    }
+    var swapFaceButtons by rememberSaveable {
+        mutableStateOf(if (isPreview) false else inputPrefs?.swapFaceButtons ?: false)
+    }
 
     // Controller/gamepad hints visibility
-    var showGamepadHints by rememberSaveable { mutableStateOf(PrefManager.showGamepadHints) }
+    var showGamepadHints by rememberSaveable {
+        mutableStateOf(if (isPreview) true else inputPrefs?.showGamepadHints ?: true)
+    }
 
     // Achievements
-    var showAchievementNotifications by rememberSaveable { mutableStateOf(PrefManager.achievementShowNotification) }
-    var playAchievementSound by rememberSaveable { mutableStateOf(PrefManager.achievementPlaySound) }
+    var showAchievementNotifications by rememberSaveable {
+        mutableStateOf(if (isPreview) true else generalPrefs?.achievementShowNotification ?: true)
+    }
+    var playAchievementSound by rememberSaveable {
+        mutableStateOf(if (isPreview) true else generalPrefs?.achievementPlaySound ?: true)
+    }
 
     // Language selection dialog
     var openLanguageDialog by rememberSaveable { mutableStateOf(false) }
@@ -166,7 +197,7 @@ fun SettingsGroupInterface(
     val languageNames = remember { LocaleHelper.getSupportedLanguageNames() }
     var selectedLanguageIndex by rememberSaveable {
         mutableStateOf(
-            languageCodes.indexOf(PrefManager.appLanguage).takeIf { it >= 0 } ?: 0,
+            languageCodes.indexOf(if (isPreview) "en" else generalPrefs?.appLanguage ?: "en").takeIf { it >= 0 } ?: 0,
         )
     }
 
@@ -183,7 +214,7 @@ fun SettingsGroupInterface(
     }
     var openRegionDialog by rememberSaveable { mutableStateOf(false) }
     var selectedRegionIndex by rememberSaveable { mutableStateOf(
-        steamRegionsList.indexOfFirst { it.first == PrefManager.cellId }.takeIf { it >= 0 } ?: 0
+        steamRegionsList.indexOfFirst { it.first == (if (isPreview) 0 else authPrefs?.cellId ?: 0) }.takeIf { it >= 0 } ?: 0
     ) }
 
     // GOG login state
@@ -258,7 +289,9 @@ fun SettingsGroupInterface(
             state = showAchievementNotifications,
             onCheckedChange = {
                 showAchievementNotifications = it
-                PrefManager.achievementShowNotification = it
+                if (!isPreview) {
+                    generalPrefs?.achievementShowNotification = it
+                }
             },
         )
         SettingsSwitch(
@@ -267,7 +300,9 @@ fun SettingsGroupInterface(
             state = playAchievementSound,
             onCheckedChange = {
                 playAchievementSound = it
-                PrefManager.achievementPlaySound = it
+                if (!isPreview) {
+                    generalPrefs?.achievementPlaySound = it
+                }
             },
         )
         // Achievement notification position
@@ -276,7 +311,7 @@ fun SettingsGroupInterface(
         val achPositionLabels = achPositionLabelResIds.map { stringResource(it) }
         var achPositionIndex by rememberSaveable {
             mutableStateOf(
-                achPositionKeys.indexOf(PrefManager.achievementNotificationPosition).takeIf { it >= 0 } ?: achPositionKeys.indexOf("bottom_right")
+                achPositionKeys.indexOf(if (isPreview) "bottom_right" else generalPrefs?.achievementNotificationPosition ?: "bottom_right").takeIf { it >= 0 } ?: achPositionKeys.indexOf("bottom_right")
             )
         }
         SettingsListDropdown(
@@ -285,7 +320,9 @@ fun SettingsGroupInterface(
             value = achPositionIndex,
             onItemSelected = { idx ->
                 achPositionIndex = idx
-                PrefManager.achievementNotificationPosition = achPositionKeys[idx]
+                if (!isPreview) {
+                    generalPrefs?.achievementNotificationPosition = achPositionKeys[idx]
+                }
             },
             colors = settingsTileColorsAlt(),
         )
@@ -297,7 +334,9 @@ fun SettingsGroupInterface(
             state = openWebLinks,
             onCheckedChange = {
                 openWebLinks = it
-                PrefManager.openWebLinksExternally = it
+                if (!isPreview) {
+                    generalPrefs?.openWebLinksExternally = it
+                }
             },
         )
 
@@ -322,11 +361,15 @@ fun SettingsGroupInterface(
             state = swapFaceButtons,
             onCheckedChange = {
                 swapFaceButtons = it
-                PrefManager.swapFaceButtons = it
+                if (!isPreview) {
+                    inputPrefs?.swapFaceButtons = it
+                }
             },
         )
 
-        var warnBeforeExit by rememberSaveable { mutableStateOf(PrefManager.warnBeforeExit) }
+        var warnBeforeExit by rememberSaveable {
+            mutableStateOf(if (isPreview) true else generalPrefs?.warnBeforeExit ?: true)
+        }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_warn_before_exit_title)) },
@@ -334,7 +377,9 @@ fun SettingsGroupInterface(
             state = warnBeforeExit,
             onCheckedChange = {
                 warnBeforeExit = it
-                PrefManager.warnBeforeExit = it
+                if (!isPreview) {
+                    generalPrefs?.warnBeforeExit = it
+                }
             },
         )
 
@@ -345,11 +390,15 @@ fun SettingsGroupInterface(
             state = showGamepadHints,
             onCheckedChange = { newValue ->
                 showGamepadHints = newValue
-                PrefManager.showGamepadHints = newValue
+                if (!isPreview) {
+                    inputPrefs?.showGamepadHints = newValue
+                }
             },
         )
 
-        var showRecommendations by rememberSaveable { mutableStateOf(PrefManager.showRecommendations) }
+        var showRecommendations by rememberSaveable {
+            mutableStateOf(if (isPreview) true else libraryPrefs?.showRecommendations ?: true)
+        }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_show_recommendations_title)) },
@@ -357,9 +406,11 @@ fun SettingsGroupInterface(
             state = showRecommendations,
             onCheckedChange = {
                 showRecommendations = it
-                PrefManager.showRecommendations = it
+                if (!isPreview) {
+                    libraryPrefs?.showRecommendations = it
+                }
                 PluviaApp.events.emit(AndroidEvent.RecommendationToggleChanged)
-                if (PrefManager.usageAnalyticsEnabled) {
+                if (!isPreview && generalPrefs?.usageAnalyticsEnabled == true) {
                     com.posthog.PostHog.capture(
                         event = "\$set",
                         properties = mapOf("\$set" to mapOf("recommendation_enabled" to it)),
@@ -388,12 +439,14 @@ fun SettingsGroupInterface(
         SettingsMenuLink(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_language)) },
-            subtitle = { Text(text = LocaleHelper.getLanguageDisplayName(PrefManager.appLanguage)) },
+            subtitle = { Text(text = LocaleHelper.getLanguageDisplayName(if (isPreview) "en" else generalPrefs?.appLanguage ?: "en")) },
             onClick = { openLanguageDialog = true },
         )
 
         // Unified visual icon picker (affects app and notification icons)
-        var selectedVariant by rememberSaveable { mutableStateOf(if (PrefManager.useAltLauncherIcon || PrefManager.useAltNotificationIcon) 1 else 0) }
+        var selectedVariant by rememberSaveable {
+            mutableStateOf(if (if (isPreview) false else (generalPrefs?.useAltLauncherIcon == true || generalPrefs?.useAltNotificationIcon == true)) 1 else 0)
+        }
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text(
                 text = stringResource(R.string.settings_interface_icon_style),
@@ -408,8 +461,10 @@ fun SettingsGroupInterface(
                     selected = selectedVariant == 0,
                     onClick = {
                         selectedVariant = 0
-                        PrefManager.useAltLauncherIcon = false
-                        PrefManager.useAltNotificationIcon = false
+                        if (!isPreview) {
+                            generalPrefs?.useAltLauncherIcon = false
+                            generalPrefs?.useAltNotificationIcon = false
+                        }
                         IconSwitcher.applyLauncherIcon(context, false)
                     },
                 )
@@ -420,8 +475,10 @@ fun SettingsGroupInterface(
                     selected = selectedVariant == 1,
                     onClick = {
                         selectedVariant = 1
-                        PrefManager.useAltLauncherIcon = true
-                        PrefManager.useAltNotificationIcon = true
+                        if (!isPreview) {
+                            generalPrefs?.useAltLauncherIcon = true
+                            generalPrefs?.useAltNotificationIcon = true
+                        }
                         IconSwitcher.applyLauncherIcon(context, true)
                     },
                 )
@@ -434,14 +491,18 @@ fun SettingsGroupInterface(
         modifier = Modifier.background(Color.Transparent),
         title = { Text(text = stringResource(R.string.settings_interface_custom_games)) },
     ) {
-        var importCustomGameAsSteamGame by rememberSaveable { mutableStateOf(PrefManager.importCustomGameAsSteamGame) }
+        var importCustomGameAsSteamGame by rememberSaveable {
+            mutableStateOf(if (isPreview) false else libraryPrefs?.importCustomGameAsSteamGame ?: false)
+        }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_custom_game_import_as_steam)) },
             state = importCustomGameAsSteamGame,
             onCheckedChange = {
                 importCustomGameAsSteamGame = it
-                PrefManager.importCustomGameAsSteamGame = it
+                if (!isPreview) {
+                    libraryPrefs?.importCustomGameAsSteamGame = it
+                }
             },
         )
     }
@@ -455,7 +516,9 @@ fun SettingsGroupInterface(
         modifier = Modifier.background(Color.Transparent),
         title = { Text(text = stringResource(R.string.settings_downloads_title)) },
     ) {
-        var wifiOnlyDownload by rememberSaveable { mutableStateOf(PrefManager.downloadOnWifiOnly) }
+        var wifiOnlyDownload by rememberSaveable {
+            mutableStateOf(if (isPreview) false else downloadPrefs?.downloadOnWifiOnly ?: false)
+        }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_wifi_only_title)) },
@@ -463,7 +526,9 @@ fun SettingsGroupInterface(
             state = wifiOnlyDownload,
             onCheckedChange = {
                 wifiOnlyDownload = it
-                PrefManager.downloadOnWifiOnly = it
+                if (!isPreview) {
+                    downloadPrefs?.downloadOnWifiOnly = it
+                }
             },
         )
 
@@ -477,7 +542,7 @@ fun SettingsGroupInterface(
         val downloadSpeedValues = remember { listOf(8, 16, 24, 32) }
         var downloadSpeedValue by rememberSaveable {
             mutableStateOf(
-                downloadSpeedValues.indexOf(PrefManager.downloadSpeed).takeIf { it >= 0 }?.toFloat() ?: 2f
+                downloadSpeedValues.indexOf(if (isPreview) 24 else downloadPrefs?.downloadSpeed ?: 24).takeIf { it >= 0 }?.toFloat() ?: 2f
             )
         }
         Column(
@@ -500,7 +565,9 @@ fun SettingsGroupInterface(
                 onValueChange = { newIndex ->
                     downloadSpeedValue = newIndex
                     val index = newIndex.roundToInt().coerceIn(0, 3)
-                    PrefManager.downloadSpeed = downloadSpeedValues[index]
+                    if (!isPreview) {
+                        downloadPrefs?.downloadSpeed = downloadSpeedValues[index]
+                    }
                 },
                 valueRange = 0f..3f,
                 steps = 2, // Creates exactly 4 positions: 0, 1, 2, 3
@@ -545,7 +612,9 @@ fun SettingsGroupInterface(
                 sm?.getStorageVolume(dir)?.getDescription(ctx) ?: externalStorageFallbackLabel
             }
         }
-        var useExternalStorage by rememberSaveable { mutableStateOf(PrefManager.useExternalStorage) }
+        var useExternalStorage by rememberSaveable {
+            mutableStateOf(if (isPreview) false else downloadPrefs?.useExternalStorage ?: false)
+        }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             enabled = dirs.isNotEmpty(),
@@ -559,9 +628,11 @@ fun SettingsGroupInterface(
             state = useExternalStorage,
             onCheckedChange = {
                 useExternalStorage = it
-                PrefManager.useExternalStorage = it
-                if (it && dirs.isNotEmpty()) {
-                    PrefManager.externalStoragePath = StorageUtils.preferredInstallRoot(dirs[0])
+                if (!isPreview) {
+                    downloadPrefs?.useExternalStorage = it
+                    if (it && dirs.isNotEmpty()) {
+                        downloadPrefs?.externalStoragePath = StorageUtils.preferredInstallRoot(dirs[0])
+                    }
                 }
             },
         )
@@ -570,8 +641,8 @@ fun SettingsGroupInterface(
             var selectedIndex by rememberSaveable(dirs) {
                 mutableStateOf(
                     dirs.indexOfFirst { dir ->
-                        dir.absolutePath == PrefManager.externalStoragePath ||
-                            StorageUtils.publicInstallRoot(dir)?.absolutePath == PrefManager.externalStoragePath
+                        dir.absolutePath == (if (isPreview) "" else downloadPrefs?.externalStoragePath) ||
+                            StorageUtils.publicInstallRoot(dir)?.absolutePath == (if (isPreview) "" else downloadPrefs?.externalStoragePath)
                     }.takeIf { it >= 0 } ?: 0,
                 )
             }
@@ -581,7 +652,9 @@ fun SettingsGroupInterface(
                 value = selectedIndex,
                 onItemSelected = { idx ->
                     selectedIndex = idx
-                    PrefManager.externalStoragePath = StorageUtils.preferredInstallRoot(dirs[idx])
+                    if (!isPreview) {
+                        downloadPrefs?.externalStoragePath = StorageUtils.preferredInstallRoot(dirs[idx])
+                    }
                 },
                 colors = settingsTileColorsAlt(),
             )
@@ -608,8 +681,10 @@ fun SettingsGroupInterface(
         onSelected = { index ->
             selectedRegionIndex = index
             val selectedId = steamRegionsList[index].first
-            PrefManager.cellId = selectedId
-            PrefManager.cellIdManuallySet = selectedId != 0
+            if (!isPreview) {
+                authPrefs?.cellId = selectedId
+                authPrefs?.cellIdManuallySet = selectedId != 0
+            }
         },
         onDismiss = { openRegionDialog = false },
     )
@@ -625,20 +700,22 @@ fun SettingsGroupInterface(
             showStatusBarRestartDialog = false
             val newValue = pendingStatusBarValue ?: return@MessageDialog
             // Save preference and show loading dialog
-            PrefManager.hideStatusBarWhenNotInGame = newValue
+            if (!isPreview) {
+                generalPrefs?.hideStatusBarWhenNotInGame = newValue
+            }
             showStatusBarLoadingDialog = true
             pendingStatusBarValue = null
         },
         onDismissRequest = {
             showStatusBarRestartDialog = false
             // Revert toggle to original value
-            hideStatusBar = PrefManager.hideStatusBarWhenNotInGame
+            hideStatusBar = if (isPreview) false else generalPrefs?.hideStatusBarWhenNotInGame ?: false
             pendingStatusBarValue = null
         },
         onDismissClick = {
             showStatusBarRestartDialog = false
             // Revert toggle to original value
-            hideStatusBar = PrefManager.hideStatusBarWhenNotInGame
+            hideStatusBar = if (isPreview) false else generalPrefs?.hideStatusBarWhenNotInGame ?: false
             pendingStatusBarValue = null
         },
     )
@@ -676,7 +753,7 @@ fun SettingsGroupInterface(
             selectedLanguageIndex = index
             val selectedCode = languageCodes[index]
             // Check if language actually changed
-            if (selectedCode != PrefManager.appLanguage) {
+            if (selectedCode != (if (isPreview) "en" else generalPrefs?.appLanguage ?: "en")) {
                 pendingLanguageCode = selectedCode
                 showLanguageRestartDialog = true
             }
@@ -696,20 +773,22 @@ fun SettingsGroupInterface(
             showLanguageRestartDialog = false
             val newLanguage = pendingLanguageCode ?: return@MessageDialog
             // Save preference and show loading dialog
-            PrefManager.appLanguage = newLanguage
+            if (!isPreview) {
+                generalPrefs?.appLanguage = newLanguage
+            }
             showLanguageLoadingDialog = true
             pendingLanguageCode = null
         },
         onDismissRequest = {
             showLanguageRestartDialog = false
             // Revert selection to original value
-            selectedLanguageIndex = languageCodes.indexOf(PrefManager.appLanguage).takeIf { it >= 0 } ?: 0
+            selectedLanguageIndex = languageCodes.indexOf(if (isPreview) "en" else generalPrefs?.appLanguage ?: "en").takeIf { it >= 0 } ?: 0
             pendingLanguageCode = null
         },
         onDismissClick = {
             showLanguageRestartDialog = false
             // Revert selection to original value
-            selectedLanguageIndex = languageCodes.indexOf(PrefManager.appLanguage).takeIf { it >= 0 } ?: 0
+            selectedLanguageIndex = languageCodes.indexOf(if (isPreview) "en" else generalPrefs?.appLanguage ?: "en").takeIf { it >= 0 } ?: 0
             pendingLanguageCode = null
         },
     )
@@ -790,11 +869,6 @@ private fun IconVariantCard(
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun Preview_SettingsScreen() {
-    val isPreview = LocalInspectionMode.current
-    if (!isPreview) {
-        val context = LocalContext.current
-        PrefManager.init(context)
-    }
     PluviaTheme {
         SettingsGroupInterface(
             appTheme = AppTheme.DAY,

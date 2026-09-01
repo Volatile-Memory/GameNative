@@ -73,7 +73,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.SteamCollection
 import app.gamenative.ui.component.GameStatsKey
@@ -457,8 +456,6 @@ fun LibraryOptionsPanel(
 )
 @Composable
 private fun Preview_LibraryOptionsPanel() {
-    val context = LocalContext.current
-    PrefManager.init(context)
     PluviaTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize()) {

@@ -7,7 +7,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.gamenative.BuildConfig
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.data.GameProcessInfo
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryPlayHistory
@@ -18,6 +17,7 @@ import app.gamenative.enums.LoginResult
 import app.gamenative.enums.PathType
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
+import app.gamenative.preferences.GeneralPreferences
 import app.gamenative.ui.enums.Orientation
 import java.util.EnumSet
 import app.gamenative.service.ActiveGameRegistry
@@ -62,6 +62,7 @@ class MainViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val appTheme: IAppTheme,
     private val libraryPlayHistoryDao: LibraryPlayHistoryDao,
+    private val generalPreferences: GeneralPreferences,
 ) : ViewModel() {
 
     companion object {
@@ -77,8 +78,8 @@ class MainViewModel @Inject constructor(
     private var pendingWarmPitch: Pair<String, Boolean>? = null
 
     private fun warmPitchAllowed(): Boolean {
-        if (PrefManager.tipped || BuildConfig.GOLD) return false
-        return System.currentTimeMillis() - PrefManager.lastWarmPitchTime >= WARM_PITCH_COOLDOWN_MS
+        if (generalPreferences.tipped || BuildConfig.GOLD) return false
+        return System.currentTimeMillis() - generalPreferences.lastWarmPitchTime >= WARM_PITCH_COOLDOWN_MS
     }
 
     fun onGameFeedbackResolved(rating: Int?) {
@@ -279,7 +280,7 @@ class MainViewModel @Inject constructor(
         _state.update {
             it.copy(
                 isSteamConnected = SteamService.isConnected,
-                hasCrashedLastStart = PrefManager.recentlyCrashed,
+                hasCrashedLastStart = generalPreferences.recentlyCrashed,
                 launchedAppId = "",
                 currentScreen = restoredScreen,
                 connectionState = initialConnectionState,
@@ -474,7 +475,7 @@ class MainViewModel @Inject constructor(
 
     fun setHasCrashedLastStart(value: Boolean) {
         if (value.not()) {
-            PrefManager.recentlyCrashed = false
+            generalPreferences.recentlyCrashed = false
         }
         _state.update { it.copy(hasCrashedLastStart = value) }
     }
@@ -502,7 +503,7 @@ class MainViewModel @Inject constructor(
     fun launchApp(context: Context, appId: String) {
         gameSessionStartTime = System.currentTimeMillis()
         gamePlayedThisSession = true
-        PrefManager.hasAttemptedGameLaunch = true
+        generalPreferences.hasAttemptedGameLaunch = true
         // Show booting splash before launching the app
         viewModelScope.launch {
             viewModelScope.launch(Dispatchers.IO) {
@@ -515,7 +516,7 @@ class MainViewModel @Inject constructor(
             }
 
             setShowBootingSplash(true)
-            PluviaApp.events.emit(AndroidEvent.SetAllowedOrientation(PrefManager.allowedOrientation))
+            PluviaApp.events.emit(AndroidEvent.SetAllowedOrientation(generalPreferences.allowedOrientation))
 
             val heroUrl = withContext(Dispatchers.IO) {
                 val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)

@@ -8,12 +8,14 @@ import app.gamenative.enums.LoginResult
 import app.gamenative.enums.LoginScreen
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
+import app.gamenative.preferences.GeneralPreferences
 import app.gamenative.service.SteamService
 import app.gamenative.ui.data.UserLoginState
-import app.gamenative.PrefManager
 import com.posthog.PostHog
+import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.dragonbra.javasteam.steam.authentication.IAuthenticator
 import java.util.concurrent.CompletableFuture
+import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +25,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
-class UserLoginViewModel : ViewModel() {
+@HiltViewModel
+class UserLoginViewModel @Inject constructor(
+    private val generalPreferences: GeneralPreferences,
+) : ViewModel() {
     private val _loginState = MutableStateFlow(UserLoginState())
     val loginState: StateFlow<UserLoginState> = _loginState.asStateFlow()
 
@@ -147,14 +152,14 @@ class UserLoginViewModel : ViewModel() {
         }
 
         if (it.loginResult == LoginResult.Success) {
-            if (PrefManager.usageAnalyticsEnabled) {
+            if (generalPreferences.usageAnalyticsEnabled) {
                 PostHog.capture(
                     event = "login_success",
                     properties = mapOf("method" to method),
                 )
             }
         } else if (it.loginResult == LoginResult.Failed) {
-            if (PrefManager.usageAnalyticsEnabled) {
+            if (generalPreferences.usageAnalyticsEnabled) {
                 PostHog.capture(
                     event = "login_failed",
                     properties = mapOf(

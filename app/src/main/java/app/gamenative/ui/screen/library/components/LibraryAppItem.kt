@@ -34,7 +34,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
-import app.gamenative.PrefManager
 import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
@@ -180,7 +179,6 @@ fun GameSourceIcon(
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun Preview_AppItem() {
-    PrefManager.init(LocalContext.current)
     PluviaTheme {
         Surface {
             LazyColumn(
@@ -220,7 +218,6 @@ private fun Preview_AppItem() {
 @Preview(device = "spec:width=1920px,height=1080px,dpi=440")
 @Composable
 private fun Preview_AppItemGrid() {
-    PrefManager.init(LocalContext.current)
     PluviaTheme {
         Surface {
             Column {

@@ -56,7 +56,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.widget.doAfterTextChanged
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.ui.data.LibraryState
 import app.gamenative.ui.theme.PluviaTheme
@@ -326,8 +325,6 @@ private fun SearchBarInput(
 @Preview(uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES or android.content.res.Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun Preview_LibrarySearchBar() {
-    val context = LocalContext.current
-    PrefManager.init(context)
     PluviaTheme {
         Surface {
             LibrarySearchBar(
@@ -345,8 +342,6 @@ private fun Preview_LibrarySearchBar() {
 @Preview(uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES or android.content.res.Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun Preview_LibrarySearchBar_Empty() {
-    val context = LocalContext.current
-    PrefManager.init(context)
     PluviaTheme {
         Surface {
             LibrarySearchBar(

@@ -34,11 +34,12 @@ import coil.memory.MemoryCache
 import coil.intercept.Interceptor
 import coil.request.CachePolicy
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
 import app.gamenative.events.AndroidEvent
 import app.gamenative.mods.NexusDownloadLinkInbox
 import app.gamenative.mods.NexusIntegrationStatus
 import app.gamenative.mods.NexusPendingDownloadStore
+import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.ui.screen.library.appscreen.BaseAppScreen
 import app.gamenative.service.SteamService
 import app.gamenative.service.gog.GOGService
@@ -60,6 +61,7 @@ import com.skydoves.landscapist.coil.LocalCoilImageLoader
 import com.winlator.core.AppUtils
 import com.winlator.inputcontrols.ControllerManager
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.launch
 import java.util.EnumSet
 import kotlin.math.abs
@@ -68,6 +70,8 @@ import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var generalPreferences: GeneralPreferences
 
     companion object {
         private var totalIndex = 0
@@ -173,11 +177,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun attachBaseContext(newBase: Context) {
-        // Initialize PrefManager to read language setting
-        PrefManager.init(newBase)
-
-        // Apply the saved language preference before creating the activity
-        val languageCode = PrefManager.appLanguage
+        val entryPoint = PreferencesEntryPoint.get(newBase)
+        val languageCode = entryPoint.generalPreferences().appLanguage
         val context = LocaleHelper.applyLanguage(newBase, languageCode)
         super.attachBaseContext(context)
     }
@@ -476,7 +477,7 @@ class MainActivity : ComponentActivity() {
             EpicService.start(this)
         }
 
-        if (PrefManager.usageAnalyticsEnabled) {
+        if (generalPreferences.usageAnalyticsEnabled) {
             PostHog.capture(event = "app_foregrounded")
         }
     }
@@ -500,7 +501,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        if (PrefManager.usageAnalyticsEnabled) {
+        if (generalPreferences.usageAnalyticsEnabled) {
             PostHog.capture(event = "app_backgrounded")
         }
         super.onPause()

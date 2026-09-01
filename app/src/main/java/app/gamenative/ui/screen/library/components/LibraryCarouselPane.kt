@@ -39,6 +39,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -52,8 +53,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
-import app.gamenative.PrefManager
+import androidx.compose.ui.platform.LocalContext
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.LibraryItem
 import app.gamenative.ui.data.LibraryState
@@ -240,7 +241,8 @@ internal fun LibraryCarouselPane(
     val configuration = LocalConfiguration.current
     val horizontalPadding = AdaptivePadding.horizontal()
     val showGamepadHints = shouldShowGamepadUI()
-    val hideStatusBar = PrefManager.hideStatusBarWhenNotInGame
+    val context = LocalContext.current
+    val hideStatusBar = remember(context) { PreferencesEntryPoint.get(context).generalPreferences().hideStatusBarWhenNotInGame }
 
     // Fine-Tuned Values by JT, working on both landscape and portrait screens
     val hintBarHeight = if (showGamepadHints) 56.dp else 0.dp

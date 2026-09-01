@@ -21,12 +21,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.GameSource
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.sync.FrontendSyncManager
 import app.gamenative.ui.components.rememberCustomGameFolderPicker
 
@@ -93,8 +94,9 @@ private fun FrontendSyncSourceRow(
     label: String,
     onChangeQueued: (newPath: String, deleteOldFiles: Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
     var displayPath by remember(source) {
-        mutableStateOf(PrefManager.getFrontendSyncDir(source))
+        mutableStateOf(PreferencesEntryPoint.get(context).downloadPreferences().getFrontendSyncDir(source))
     }
     var showConfirm by remember { mutableStateOf(false) }
     var pendingPath by remember { mutableStateOf("") }

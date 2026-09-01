@@ -11,7 +11,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import app.gamenative.PrefManager
+import androidx.compose.runtime.remember
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.ui.component.dialog.Box64PresetsDialog
 import app.gamenative.ui.component.dialog.ContainerConfigDialog
@@ -27,6 +28,12 @@ import com.alorma.compose.settings.ui.SettingsSwitch
 
 @Composable
 fun SettingsGroupEmulation() {
+    val context = LocalContext.current
+    val isPreview = LocalInspectionMode.current
+    val containerPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).containerPreferences()
+    }
+
     SettingsGroup(
     ) {
         var showConfigDialog by rememberSaveable { mutableStateOf(false) }
@@ -91,7 +98,9 @@ fun SettingsGroupEmulation() {
             subtitle = { Text(text = stringResource(R.string.settings_emulation_default_config_subtitle)) },
             onClick = { showConfigDialog = true },
         )
-        var autoApplyKnownConfig by rememberSaveable { mutableStateOf(PrefManager.autoApplyKnownConfig) }
+        var autoApplyKnownConfig by rememberSaveable {
+            mutableStateOf(if (isPreview) false else containerPrefs?.autoApplyKnownConfig ?: false)
+        }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             state = autoApplyKnownConfig,
@@ -99,7 +108,9 @@ fun SettingsGroupEmulation() {
             subtitle = { Text(text = stringResource(R.string.settings_emulation_auto_apply_known_config_subtitle)) },
             onCheckedChange = {
                 autoApplyKnownConfig = it
-                PrefManager.autoApplyKnownConfig = it
+                if (!isPreview) {
+                    containerPrefs?.autoApplyKnownConfig = it
+                }
             },
         )
         SettingsMenuLink(
@@ -138,11 +149,6 @@ fun SettingsGroupEmulation() {
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun Preview_SettingsGroupEmulation() {
-    val isPreview = LocalInspectionMode.current
-    if (!isPreview) {
-        val context = LocalContext.current
-        PrefManager.init(context)
-    }
     PluviaTheme {
         SettingsGroupEmulation()
     }

@@ -3,9 +3,10 @@ package app.gamenative.ui.util
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.gamenative.PrefManager
+import app.gamenative.preferences.preferencesEntryPoint
 
 /**
  * Window width size classes based on Material Design 3 guidelines.
@@ -37,7 +38,9 @@ fun rememberScreenWidthDp(): Int {
 
 @Composable
 fun shouldShowGamepadUI(): Boolean {
-    if (!PrefManager.showGamepadHints) {
+    val context = LocalContext.current
+    val inputPreferences = remember(context) { context.preferencesEntryPoint().inputPreferences() }
+    if (!inputPreferences.showGamepadHints) {
         return false
     }
     return rememberWindowWidthClass() != WindowWidthClass.COMPACT

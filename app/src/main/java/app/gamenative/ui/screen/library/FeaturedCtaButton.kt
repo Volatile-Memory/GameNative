@@ -26,7 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.FeaturedCta
 import app.gamenative.service.SteamService
@@ -64,7 +64,7 @@ internal fun FeaturedCtaButton(
     val onClick: () -> Unit = onClick@{
         if (inert) return@onClick
 
-        if (PrefManager.usageAnalyticsEnabled) {
+        if (PreferencesEntryPoint.get(context).generalPreferences().usageAnalyticsEnabled) {
             PostHog.capture(
                 event = "featured_action_clicked",
                 properties = mapOf(

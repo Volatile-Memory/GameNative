@@ -21,7 +21,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.gamenative.PrefManager
+import androidx.compose.ui.platform.LocalContext
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
@@ -47,11 +48,13 @@ fun RecommendedTabPane(
     onFocusedIndexChanged: (Int) -> Unit = {},
     onItemCountChanged: (Int) -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val generalPrefs = remember(context) { PreferencesEntryPoint.get(context).generalPreferences() }
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.loadIfNeeded()
-        if (PrefManager.usageAnalyticsEnabled) {
+        if (generalPrefs.usageAnalyticsEnabled) {
             PostHog.capture(
                 event = "recommendation_tab_opened",
                 properties = mapOf("\$set" to mapOf("recommendation_enabled" to true)),
@@ -84,7 +87,7 @@ fun RecommendedTabPane(
     }
     DisposableEffect(Unit) {
         onDispose {
-            if (PrefManager.usageAnalyticsEnabled && seenIndices.isNotEmpty()) {
+            if (generalPrefs.usageAnalyticsEnabled && seenIndices.isNotEmpty()) {
                 val gameIds = seenIndices.sorted().mapNotNull { currentCards.getOrNull(it)?.productId }
                 PostHog.capture(
                     event = "recommendation_tab_viewed",

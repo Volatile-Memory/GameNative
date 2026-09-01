@@ -75,7 +75,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.data.GameCompatibilityStatus
@@ -217,6 +217,9 @@ private fun LibraryScreenContent(
     isSteamConnected: Boolean = false,
 ) {
     val context = LocalContext.current
+    val entryPoint = remember(context) { PreferencesEntryPoint.get(context) }
+    val libraryPrefs = remember(entryPoint) { entryPoint.libraryPreferences() }
+    val generalPrefs = remember(entryPoint) { entryPoint.generalPreferences() }
     val lifecycleScope = LocalLifecycleOwner.current.lifecycleScope
 
     val gogOAuthLauncher = rememberLauncherForActivityResult(
@@ -327,16 +330,16 @@ private fun LibraryScreenContent(
     var selectedAppId by remember { mutableStateOf<String?>(null) }
     val carouselListState = rememberLazyListState()
     val isViewWide = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    var currentPaneType by remember { mutableStateOf(PrefManager.libraryLayout) }
-    var recDisclosureShown by remember { mutableStateOf(PrefManager.recDisclosureShown) }
+    var currentPaneType by remember { mutableStateOf(libraryPrefs.libraryLayout) }
+    var recDisclosureShown by remember { mutableStateOf(libraryPrefs.recDisclosureShown) }
     var showRecTeaserDialog by remember { mutableStateOf(false) }
     val onRecTeaserTapped = {
-        if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = "rec_teaser_tapped")
+        if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = "rec_teaser_tapped")
         showRecTeaserDialog = true
     }
     val recTeaserVisible = state.appInfoList.firstOrNull()?.isRecTeaser == true
     LaunchedEffect(recTeaserVisible) {
-        if (recTeaserVisible && PrefManager.usageAnalyticsEnabled) {
+        if (recTeaserVisible && generalPrefs.usageAnalyticsEnabled) {
             PostHog.capture(event = "rec_teaser_shown")
         }
     }
@@ -345,7 +348,7 @@ private fun LibraryScreenContent(
     LaunchedEffect(Unit) {
         if (currentPaneType == PaneType.UNDECIDED) {
             currentPaneType = if (isViewWide) PaneType.GRID_HERO else PaneType.GRID_CAPSULE
-            PrefManager.libraryLayout = currentPaneType
+            libraryPrefs.libraryLayout = currentPaneType
         }
     }
 
@@ -532,7 +535,7 @@ private fun LibraryScreenContent(
     val onAddCustomGameClick = {
         if (BuildConfig.MODERN_ANDROID) {
             showModernImportDialog = true
-        } else if (PrefManager.showAddCustomGameDialog) {
+        } else if (libraryPrefs.showAddCustomGameDialog) {
             showAddCustomGameDialog = true
         } else {
             folderPicker.launchPicker()
@@ -978,13 +981,13 @@ private fun LibraryScreenContent(
                 if (showRecTeaserDialog) {
                     RecommendationDisclosureDialog(
                         onContinue = {
-                            PrefManager.recDisclosureShown = true
+                            libraryPrefs.recDisclosureShown = true
                             recDisclosureShown = true
                             showRecTeaserDialog = false
                             PluviaApp.events.emit(AndroidEvent.RecommendationToggleChanged)
                         },
                         onDismiss = {
-                            PrefManager.recTeaserDismissedDay = System.currentTimeMillis() / (24L * 60 * 60 * 1000)
+                            libraryPrefs.recTeaserDismissedDay = System.currentTimeMillis() / (24L * 60 * 60 * 1000)
                             showRecTeaserDialog = false
                         },
                         source = "hero",
@@ -1010,7 +1013,7 @@ private fun LibraryScreenContent(
                         Box(modifier = Modifier.fillMaxSize())
                         RecommendationDisclosureDialog(
                             onContinue = {
-                                PrefManager.recDisclosureShown = true
+                                libraryPrefs.recDisclosureShown = true
                                 recDisclosureShown = true
                                 PluviaApp.events.emit(AndroidEvent.RecommendationToggleChanged)
                             },
@@ -1023,7 +1026,7 @@ private fun LibraryScreenContent(
                     LibraryTab.GOG -> !GOGService.hasStoredCredentials(context)
                     LibraryTab.EPIC -> !EpicService.hasStoredCredentials(context)
                     LibraryTab.AMAZON -> !AmazonService.hasStoredCredentials(context)
-                    LibraryTab.LOCAL -> PrefManager.customGamesCount == 0
+                    LibraryTab.LOCAL -> libraryPrefs.customGamesCount == 0
                     else -> false
                 }
                 // Favorites tab has its own empty state. Only show it once favorites have loaded and
@@ -1292,7 +1295,7 @@ private fun LibraryScreenContent(
                 onSortOptionChanged = onSortOptionChanged,
                 currentView = currentPaneType,
                 onViewChanged = { newPaneType ->
-                    PrefManager.libraryLayout = newPaneType
+                    libraryPrefs.libraryLayout = newPaneType
                     currentPaneType = newPaneType
                 },
                 steamCollections = state.steamCollections,
@@ -1447,7 +1450,7 @@ private fun LibraryScreenContent(
                     TextButton(
                         onClick = {
                             if (dontShowAgain) {
-                                PrefManager.showAddCustomGameDialog = false
+                                libraryPrefs.showAddCustomGameDialog = false
                             }
                             showAddCustomGameDialog = false
                             folderPicker.launchPicker()
@@ -1486,7 +1489,6 @@ private fun LibraryScreenContent(
 private fun Preview_LibraryScreenContent() {
     val sheetState = rememberModalBottomSheetState()
     val context = LocalContext.current
-    PrefManager.init(context)
     var state by remember {
         mutableStateOf(
             LibraryState(

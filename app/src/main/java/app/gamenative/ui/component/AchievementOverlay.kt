@@ -31,16 +31,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import app.gamenative.R
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.AchievementNotification
 import app.gamenative.ui.util.AchievementNotificationManager
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
 import kotlinx.coroutines.delay
-import app.gamenative.PrefManager
 
 
 internal val ACHIEVEMENT_NOTIFICATION_POSITION: Map<String, Int> = mapOf(
@@ -52,6 +53,9 @@ internal val ACHIEVEMENT_NOTIFICATION_POSITION: Map<String, Int> = mapOf(
 
 @Composable
 fun BoxScope.AchievementOverlay() {
+    val context = LocalContext.current
+    val generalPreferences = remember(context) { context.preferencesEntryPoint().generalPreferences() }
+    val position = generalPreferences.achievementNotificationPosition
     var current by remember { mutableStateOf<AchievementNotification?>(null) }
     var visible by remember { mutableStateOf(false) }
 
@@ -66,13 +70,13 @@ fun BoxScope.AchievementOverlay() {
         }
     }
 
-    val isLeftAligned = PrefManager.achievementNotificationPosition in setOf("top_left", "bottom_left")
+    val isLeftAligned = position in setOf("top_left", "bottom_left")
 
     AnimatedVisibility(
         visible = visible,
         modifier = Modifier
             .align(
-                when (PrefManager.achievementNotificationPosition) {
+                when (position) {
                     "top_left" -> Alignment.TopStart
                     "top_right" -> Alignment.TopEnd
                     "bottom_left" -> Alignment.BottomStart

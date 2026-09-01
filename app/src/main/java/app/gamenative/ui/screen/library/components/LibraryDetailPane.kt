@@ -10,7 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.data.RecommendationRepository
@@ -32,6 +32,11 @@ internal fun LibraryDetailPane(
     onPlayWithDiagnostics: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val entryPoint = remember(context) { PreferencesEntryPoint.get(context) }
+    val libraryPrefs = remember(entryPoint) { entryPoint.libraryPreferences() }
+    val generalPrefs = remember(entryPoint) { entryPoint.generalPreferences() }
+
     Surface {
         if (libraryItem == null) {
             val listState = rememberLazyGridState()
@@ -45,13 +50,12 @@ internal fun LibraryDetailPane(
             LibraryListPane(
                 state = emptyState,
                 listState = listState,
-                currentLayout = PrefManager.libraryLayout,
+                currentLayout = libraryPrefs.libraryLayout,
                 onPageChange = {},
                 onNavigate = {},
                 onRefresh = {},
             )
         } else if (libraryItem.isRecommended) {
-            val context = LocalContext.current
             var game by remember(libraryItem.recommendedGameId) {
                 mutableStateOf<RecommendedGame?>(null)
             }
@@ -62,7 +66,7 @@ internal fun LibraryDetailPane(
                     GogRecommendationsRepository.getRecommendedGame(libraryItem.recommendedGameId)
                         ?: RecommendationRepository.getCurrentRecommendation(context)
                 }
-                if (game != null && PrefManager.usageAnalyticsEnabled) {
+                if (game != null && generalPrefs.usageAnalyticsEnabled) {
                     if (libraryItem.isFeatured) {
                         PostHog.capture(
                             event = "featured_opened",
@@ -115,7 +119,6 @@ internal fun LibraryDetailPane(
 @Preview(device = "spec:width=1920px,height=1080px,dpi=440") // Odin2 Mini
 @Composable
 private fun Preview_LibraryDetailPane() {
-    PrefManager.init(LocalContext.current)
     PluviaTheme {
         LibraryDetailPane(
             libraryItem = LibraryItem(

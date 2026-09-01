@@ -37,7 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import app.gamenative.BuildConfig
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.PluviaApp
 
 import app.gamenative.R
@@ -489,7 +489,7 @@ class SteamAppScreen : BaseAppScreen() {
     ) {
         val gameId = libraryItem.gameId
         val appInfo = SteamService.getAppInfoOf(gameId)
-        if (PrefManager.usageAnalyticsEnabled) {
+        if (PreferencesEntryPoint.get(context).generalPreferences().usageAnalyticsEnabled) {
             PostHog.capture(
                 event = "container_opened",
                 properties = mapOf("game_name" to (appInfo?.name ?: "")),
@@ -805,7 +805,7 @@ class SteamAppScreen : BaseAppScreen() {
             AppMenuOption(
                 AppOptionMenuType.ForceCloudSync,
                 onClick = {
-                    if (PrefManager.usageAnalyticsEnabled) {
+                    if (PreferencesEntryPoint.get(context).generalPreferences().usageAnalyticsEnabled) {
                         PostHog.capture(
                             event = "cloud_sync_forced",
                             properties = mapOf("game_name" to appInfo.name),
@@ -1016,7 +1016,7 @@ class SteamAppScreen : BaseAppScreen() {
             try {
                 val info = withContext(Dispatchers.IO) {
                     val container = ContainerManager(context).getContainerById("STEAM_$gameId")
-                    val language = container?.language ?: PrefManager.containerLanguage
+                    val language = container?.language ?: PreferencesEntryPoint.get(context).containerPreferences().containerLanguage
                     val depots = SteamService.getDownloadableDepots(gameId, language)
                     Timber.i("There are ${depots.size} depots belonging to ${libraryItem.appId}")
                     val branch = SteamService.getInstalledApp(gameId)?.branch ?: "public"

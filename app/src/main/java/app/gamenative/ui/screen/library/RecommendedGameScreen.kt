@@ -57,7 +57,7 @@ import app.gamenative.R
 import app.gamenative.data.RecommendedGame
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.screen.library.components.VideoHero
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import com.posthog.PostHog
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
@@ -376,7 +376,7 @@ internal fun RecommendedGameScreen(
                 Button(
                     interactionSource = buyInteractionSource,
                     onClick = {
-                        if (PrefManager.usageAnalyticsEnabled) {
+                        if (PreferencesEntryPoint.get(context).generalPreferences().usageAnalyticsEnabled) {
                             PostHog.capture(
                                 event = "recommendation_link_clicked",
                                 properties = mapOf(

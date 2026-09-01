@@ -54,7 +54,8 @@ import app.gamenative.Constants
 import app.gamenative.MainActivity
 import app.gamenative.NetworkMonitor
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
+import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.GameSource
 import app.gamenative.enums.AppTheme
@@ -253,19 +254,26 @@ private fun showDeferredLaunchSnackbar(context: Context, appId: String): Boolean
     }
 }
 
-/** Consume pending launch request only if it's a Steam login failure, and show failure snackbar. */
-private fun consumePendingSteamLoginError(context: Context) {
-    val request = MainActivity.peekPendingLaunchRequest() ?: return
-    val gameSource = ContainerUtils.extractGameSourceFromContainerId(request.appId)
+private fun validateSteamLoginForLaunch(context: Context, appId: String) {
+    val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
     if (gameSource != GameSource.STEAM || SteamService.isLoggedIn) return
     MainActivity.consumePendingLaunchRequest()
     SnackbarManager.show(context.getString(R.string.intent_launch_steam_login_failed))
 }
 
+private fun consumePendingSteamLoginError(context: Context) {
+    val pending = MainActivity.consumePendingLaunchRequest() ?: return
+    val gameSource = ContainerUtils.extractGameSourceFromContainerId(pending.appId)
+    if (gameSource == GameSource.STEAM) {
+        SnackbarManager.show(context.getString(R.string.intent_launch_steam_login_failed))
+    }
+}
+
 private const val LAUNCH_PITCH_COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000L
 
-private fun trackMembershipPrompt(event: String, trigger: String) {
-    if (PrefManager.usageAnalyticsEnabled) {
+private fun trackMembershipPrompt(context: Context, event: String, trigger: String) {
+    val generalPreferences = PreferencesEntryPoint.get(context).generalPreferences()
+    if (generalPreferences.usageAnalyticsEnabled) {
         PostHog.capture(
             event = event,
             properties = mapOf("trigger" to trigger),
@@ -273,7 +281,8 @@ private fun trackMembershipPrompt(event: String, trigger: String) {
     }
 }
 
-private fun trackGameLaunched(appId: String) {
+private fun trackGameLaunched(context: Context, appId: String) {
+    val generalPreferences = PreferencesEntryPoint.get(context).generalPreferences()
     val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
     val gameName = ContainerUtils.resolveGameName(appId)
     PostHog.capture(
@@ -281,8 +290,8 @@ private fun trackGameLaunched(appId: String) {
         properties = mapOf(
             "game_name" to gameName,
             "game_store" to gameSource.name,
-            "key_attestation_available" to PrefManager.keyAttestationAvailable,
-            "play_integrity_available" to PrefManager.playIntegrityAvailable,
+            "key_attestation_available" to generalPreferences.keyAttestationAvailable,
+            "play_integrity_available" to generalPreferences.playIntegrityAvailable,
         ),
     )
 }
@@ -297,6 +306,7 @@ fun PluviaMain(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
+    val generalPreferences = remember(context) { context.preferencesEntryPoint().generalPreferences() }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -370,7 +380,7 @@ fun PluviaMain(
             }
         } else {
             MainActivity.wasLaunchedViaExternalIntent = true
-            trackGameLaunched(resolvedAppId)
+            trackGameLaunched(context, resolvedAppId)
             viewModel.setLaunchedAppId(resolvedAppId)
             viewModel.setBootToContainer(false)
             scope.launch(Dispatchers.IO) {
@@ -637,9 +647,9 @@ fun PluviaMain(
 
                 is MainViewModel.MainUiEvent.ShowMembershipPitch -> {
                     val gameName = ContainerUtils.resolveGameName(event.appId)
-                    PrefManager.lastWarmPitchTime = System.currentTimeMillis()
+                    generalPreferences.lastWarmPitchTime = System.currentTimeMillis()
                     membershipPitchTrigger = event.trigger
-                    trackMembershipPrompt("membership_prompt_shown", event.trigger)
+                    trackMembershipPrompt(context, "membership_prompt_shown", event.trigger)
                     msgDialogState = MessageDialogState(
                         visible = true,
                         type = DialogType.SUPPORT,
@@ -691,7 +701,7 @@ fun PluviaMain(
             // TODO: remove this if statement once XServerScreen orientation change bug is fixed
             if (state.currentScreen != PluviaScreen.XServer) {
                 // Hide or show status bar based on if in game or not
-                val shouldShowStatusBar = !PrefManager.hideStatusBarWhenNotInGame
+                val shouldShowStatusBar = !generalPreferences.hideStatusBarWhenNotInGame
                 PluviaApp.events.emit(AndroidEvent.SetSystemUIVisibility(shouldShowStatusBar))
 
                 // reset system ui visibility based on user preference
@@ -825,7 +835,7 @@ fun PluviaMain(
         DialogType.SUPPORT -> {
             onConfirmClick = {
                 uriHandler.openUri(Constants.Misc.KO_FI_LINK)
-                trackMembershipPrompt("membership_prompt_clicked", membershipPitchTrigger)
+                trackMembershipPrompt(context, "membership_prompt_clicked", membershipPitchTrigger)
                 msgDialogState = MessageDialogState(visible = false)
             }
             onDismissRequest = {
@@ -1399,15 +1409,15 @@ fun PluviaMain(
                                     message = context.getString(R.string.main_recent_crash_message),
                                     confirmBtnText = context.getString(R.string.ok),
                                 )
-                            } else if (!(PrefManager.tipped || BuildConfig.GOLD) &&
-                                PrefManager.hasAttemptedGameLaunch &&
+                            } else if (!(generalPreferences.tipped || BuildConfig.GOLD) &&
+                                generalPreferences.hasAttemptedGameLaunch &&
                                 !MainViewModel.gamePlayedThisSession &&
-                                System.currentTimeMillis() - PrefManager.lastLaunchPitchTime >= LAUNCH_PITCH_COOLDOWN_MS
+                                System.currentTimeMillis() - generalPreferences.lastLaunchPitchTime >= LAUNCH_PITCH_COOLDOWN_MS
                             ) {
                                 viewModel.setAnnoyingDialogShown(true)
-                                PrefManager.lastLaunchPitchTime = System.currentTimeMillis()
+                                generalPreferences.lastLaunchPitchTime = System.currentTimeMillis()
                                 membershipPitchTrigger = "launch"
-                                trackMembershipPrompt("membership_prompt_shown", "launch")
+                                trackMembershipPrompt(context, "membership_prompt_shown", "launch")
                                 msgDialogState = MessageDialogState(
                                     visible = true,
                                     type = DialogType.SUPPORT,
@@ -1422,7 +1432,7 @@ fun PluviaMain(
 
                     HomeScreen(
                         onClickPlay = { appId, asContainer ->
-                            trackGameLaunched(appId)
+                            trackGameLaunched(context, appId)
                             viewModel.setLaunchedAppId(appId)
                             viewModel.setBootToContainer(asContainer)
                             viewModel.setTestGraphics(false)
@@ -1459,7 +1469,7 @@ fun PluviaMain(
                             )
                         },
                         onPlayWithDiagnostics = { appId ->
-                            trackGameLaunched(appId)
+                            trackGameLaunched(context, appId)
                             viewModel.setLaunchedAppId(appId)
                             viewModel.setBootToContainer(false)
                             viewModel.setTestGraphics(false)
@@ -1478,7 +1488,7 @@ fun PluviaMain(
                             )
                         },
                         onClickExit = {
-                            if (!PrefManager.warnBeforeExit) {
+                            if (!generalPreferences.warnBeforeExit) {
                                 PluviaApp.events.emit(AndroidEvent.EndProcess)
                             } else if (exitSnackbarVisible) {
                                 PluviaApp.events.emit(AndroidEvent.EndProcess)

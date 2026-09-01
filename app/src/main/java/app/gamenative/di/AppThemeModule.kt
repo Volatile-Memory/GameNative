@@ -1,7 +1,7 @@
 package app.gamenative.di
 
-import app.gamenative.PrefManager
 import app.gamenative.enums.AppTheme
+import app.gamenative.preferences.GeneralPreferences
 import com.materialkolor.PaletteStyle
 import dagger.Module
 import dagger.Provides
@@ -24,33 +24,35 @@ interface IAppTheme {
     var currentPalette: PaletteStyle
 }
 
-class AppThemeImpl : IAppTheme {
+class AppThemeImpl(
+    private val generalPreferences: GeneralPreferences,
+) : IAppTheme {
 
-    override val themeFlow: MutableStateFlow<AppTheme> = MutableStateFlow(PrefManager.appTheme)
+    override val themeFlow: MutableStateFlow<AppTheme> = MutableStateFlow(generalPreferences.appTheme)
 
     override var currentTheme: AppTheme by AppThemeDelegate()
 
-    override val paletteFlow: MutableStateFlow<PaletteStyle> = MutableStateFlow(PrefManager.appThemePalette)
+    override val paletteFlow: MutableStateFlow<PaletteStyle> = MutableStateFlow(generalPreferences.appThemePalette)
 
     override var currentPalette: PaletteStyle by AppPaletteDelegate()
 
     inner class AppThemeDelegate : ReadWriteProperty<Any, AppTheme> {
 
-        override fun getValue(thisRef: Any, property: KProperty<*>): AppTheme = PrefManager.appTheme
+        override fun getValue(thisRef: Any, property: KProperty<*>): AppTheme = generalPreferences.appTheme
 
         override fun setValue(thisRef: Any, property: KProperty<*>, value: AppTheme) {
             themeFlow.value = value
-            PrefManager.appTheme = value
+            generalPreferences.appTheme = value
         }
     }
 
     inner class AppPaletteDelegate : ReadWriteProperty<Any, PaletteStyle> {
 
-        override fun getValue(thisRef: Any, property: KProperty<*>): PaletteStyle = PrefManager.appThemePalette
+        override fun getValue(thisRef: Any, property: KProperty<*>): PaletteStyle = generalPreferences.appThemePalette
 
         override fun setValue(thisRef: Any, property: KProperty<*>, value: PaletteStyle) {
             paletteFlow.value = value
-            PrefManager.appThemePalette = value
+            generalPreferences.appThemePalette = value
         }
     }
 }
@@ -60,5 +62,5 @@ class AppThemeImpl : IAppTheme {
 class AppThemeModule {
     @Provides
     @Singleton
-    fun provideAppTheme(): IAppTheme = AppThemeImpl()
+    fun provideAppTheme(generalPreferences: GeneralPreferences): IAppTheme = AppThemeImpl(generalPreferences)
 }

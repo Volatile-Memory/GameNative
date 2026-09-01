@@ -1,6 +1,5 @@
 package app.gamenative.ui.data
 
-import app.gamenative.PrefManager
 import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
@@ -12,7 +11,7 @@ import app.gamenative.ui.enums.SortOption
 import java.util.EnumSet
 
 data class LibraryState(
-    val appInfoSortType: EnumSet<AppFilter> = PrefManager.libraryFilter,
+    val appInfoSortType: EnumSet<AppFilter> = EnumSet.of(AppFilter.GAME, AppFilter.SHARED),
     val appInfoList: List<LibraryItem> = emptyList(),
     val isRefreshing: Boolean = false,
 
@@ -27,14 +26,14 @@ data class LibraryState(
     val searchQuery: String = "",
 
     // App Source filters (Steam / Custom Games / GOG / Epic / Amazon)
-    val showSteamInLibrary: Boolean = PrefManager.showSteamInLibrary,
-    val showCustomGamesInLibrary: Boolean = PrefManager.showCustomGamesInLibrary,
-    val showGOGInLibrary: Boolean = PrefManager.showGOGInLibrary,
-    val showEpicInLibrary: Boolean = PrefManager.showEpicInLibrary,
-    val showAmazonInLibrary: Boolean = PrefManager.showAmazonInLibrary,
+    val showSteamInLibrary: Boolean = true,
+    val showCustomGamesInLibrary: Boolean = true,
+    val showGOGInLibrary: Boolean = true,
+    val showEpicInLibrary: Boolean = true,
+    val showAmazonInLibrary: Boolean = true,
 
     // Steam collections filter
-    val selectedSteamCollectionIds: Set<String> = PrefManager.librarySteamCollections,
+    val selectedSteamCollectionIds: Set<String> = emptySet(),
     val steamCollections: List<SteamCollection>? = null, // null = not loaded
     val skippedDynamicCollections: Boolean = false,
     val steamCollectionCounts: Map<String, Int> = emptyMap(),
@@ -56,7 +55,7 @@ data class LibraryState(
     val gpuGameStats: Map<GameSource, Map<String, DeviceGameStats>> = emptyMap(),
 
     // Sort option for the library
-    val currentSortOption: SortOption = PrefManager.librarySortOption,
+    val currentSortOption: SortOption = SortOption.INSTALLED_FIRST,
 
     // Options panel open state
     val isOptionsPanelOpen: Boolean = false,

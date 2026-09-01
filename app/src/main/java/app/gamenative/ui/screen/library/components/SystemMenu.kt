@@ -77,7 +77,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.SteamFriend
 import app.gamenative.events.SteamEvent
@@ -748,8 +747,6 @@ fun SystemMenu(
 )
 @Composable
 private fun Preview_SystemMenu() {
-    val context = LocalContext.current
-    PrefManager.init(context)
     PluviaTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize()) {

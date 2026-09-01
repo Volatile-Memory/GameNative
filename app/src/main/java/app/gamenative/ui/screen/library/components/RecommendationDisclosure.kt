@@ -5,9 +5,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import app.gamenative.PrefManager
 import app.gamenative.R
+import app.gamenative.preferences.PreferencesEntryPoint
 import com.posthog.PostHog
 
 @Composable
@@ -16,8 +18,10 @@ fun RecommendationDisclosureDialog(
     onDismiss: () -> Unit,
     source: String = "tab",
 ) {
+    val context = LocalContext.current
+    val generalPrefs = remember(context) { PreferencesEntryPoint.get(context).generalPreferences() }
     fun capture(event: String) {
-        if (PrefManager.usageAnalyticsEnabled) {
+        if (generalPrefs.usageAnalyticsEnabled) {
             PostHog.capture(event = event, properties = mapOf("source" to source))
         }
     }

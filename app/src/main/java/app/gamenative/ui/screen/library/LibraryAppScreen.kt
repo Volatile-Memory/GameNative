@@ -108,7 +108,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.gamenative.NetworkMonitor
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.LibraryItem
 import app.gamenative.service.SteamService
@@ -582,10 +582,11 @@ internal fun AppScreenContent(
     immersiveMode: ImmersiveModeUiState = ImmersiveModeUiState(),
 ) {
     val context = LocalContext.current
+    val downloadPrefs = remember(context) { PreferencesEntryPoint.get(context).downloadPreferences() }
     // reactive — recomposes when network state changes
     val hasInternet by NetworkMonitor.hasInternet.collectAsState()
     val hasWifiOrEthernet by NetworkMonitor.hasWifiOrEthernet.collectAsState()
-    val downloadAllowed = !PrefManager.downloadOnWifiOnly || hasWifiOrEthernet
+    val downloadAllowed = !downloadPrefs.downloadOnWifiOnly || hasWifiOrEthernet
     val scrollState = rememberScrollState()
 
     var optionsMenuVisible by remember { mutableStateOf(false) }
@@ -932,7 +933,7 @@ internal fun AppScreenContent(
                             val text = when {
                                 isInstalled -> stringResource(R.string.run_app)
                                 !hasInternet -> stringResource(R.string.library_need_internet)
-                                !hasWifiOrEthernet && PrefManager.downloadOnWifiOnly -> stringResource(R.string.library_wifi_only_enabled)
+                                !hasWifiOrEthernet && downloadPrefs.downloadOnWifiOnly -> stringResource(R.string.library_wifi_only_enabled)
                                 else -> stringResource(R.string.install_app)
                             }
                             PrimaryActionButton(
@@ -1346,7 +1347,6 @@ fun GameMigrationDialog(
 @Composable
 private fun Preview_AppScreen() {
     val context = LocalContext.current
-    PrefManager.init(context)
     val intent = Intent(context, SteamService::class.java)
     context.startForegroundService(intent)
     var isDownloading by remember { mutableStateOf(false) }

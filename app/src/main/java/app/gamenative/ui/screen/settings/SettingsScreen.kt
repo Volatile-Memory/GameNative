@@ -55,7 +55,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.enums.AppTheme
 import app.gamenative.ui.theme.PluviaTheme
@@ -364,11 +363,6 @@ private fun SettingsSection(
 )
 @Composable
 private fun Preview_SettingsScreen() {
-    val isPreview = LocalInspectionMode.current
-    if (!isPreview) {
-        val context = LocalContext.current
-        PrefManager.init(context)
-    }
     PluviaTheme {
         SettingsScreenContent(
             appTheme = AppTheme.DAY,

@@ -89,7 +89,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.gamenative.PluviaApp
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.SteamBootstrap
 import app.gamenative.data.GameSource
 import app.gamenative.gamefixes.GameFixesRegistry
@@ -368,6 +368,10 @@ fun XServerScreen(
 ) {
     Timber.i("Starting up XServerScreen")
     val context = LocalContext.current
+    val preferencesEntryPoint = remember(context) { PreferencesEntryPoint.get(context) }
+    val generalPrefs = remember(preferencesEntryPoint) { preferencesEntryPoint.generalPreferences() }
+    val hudPrefs = remember(preferencesEntryPoint) { preferencesEntryPoint.hudPreferences() }
+    val inputPrefs = remember(preferencesEntryPoint) { preferencesEntryPoint.inputPreferences() }
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val imm = remember(context) {
@@ -435,7 +439,7 @@ fun XServerScreen(
     PluviaApp.events.emit(
         AndroidEvent.SetAllowedOrientation(
             if (container.isPortraitMode) EnumSet.of(Orientation.PORTRAIT)
-            else PrefManager.allowedOrientation,
+            else generalPrefs.allowedOrientation,
         ),
     )
 
@@ -549,7 +553,7 @@ fun XServerScreen(
     var usingScreenMirror by remember { mutableStateOf(false) }
     var hasInternalTouchpad by remember { mutableStateOf(false) }
     var hasUpdatedScreenGamepad by remember { mutableStateOf(false) }
-    var isPerformanceHudEnabled by remember { mutableStateOf(PrefManager.showFps) }
+    var isPerformanceHudEnabled by remember { mutableStateOf(hudPrefs.showFps) }
     val shouldTrackDisplayedFrames = remember { AtomicBoolean(false) }
     var detectedMaxRefreshRateHz by remember { mutableIntStateOf(detectMaxRefreshRateHz(context, null)) }
     var fpsLimiterEnabled by rememberSaveable(container.id) { mutableStateOf(initialFpsLimiterEnabled(container)) }
@@ -569,26 +573,7 @@ fun XServerScreen(
     }
 
     fun loadPerformanceHudConfig(): PerformanceHudConfig {
-        return PerformanceHudConfig(
-            showFrameRate = PrefManager.performanceHudShowFrameRate,
-            showCpuUsage = PrefManager.performanceHudShowCpuUsage,
-            showGpuUsage = PrefManager.performanceHudShowGpuUsage,
-            showRamUsage = PrefManager.performanceHudShowRamUsage,
-            showBatteryLevel = PrefManager.performanceHudShowBatteryLevel,
-            showPowerDraw = PrefManager.performanceHudShowPowerDraw,
-            showBatteryRuntime = PrefManager.performanceHudShowBatteryRuntime,
-            showBatteryTemperature = PrefManager.performanceHudShowBatteryTemperature,
-            showClockTime = PrefManager.performanceHudShowClockTime,
-            showCpuTemperature = PrefManager.performanceHudShowCpuTemperature,
-            showGpuTemperature = PrefManager.performanceHudShowGpuTemperature,
-            showFrameRateGraph = PrefManager.performanceHudShowFrameRateGraph,
-            showCpuUsageGraph = PrefManager.performanceHudShowCpuUsageGraph,
-            showGpuUsageGraph = PrefManager.performanceHudShowGpuUsageGraph,
-            backgroundOpacity = PrefManager.performanceHudBackgroundOpacity,
-            colorIntensity = PrefManager.performanceHudColorIntensity,
-            showTextOutline = PrefManager.performanceHudShowTextOutline,
-            size = PerformanceHudSize.fromPrefValue(PrefManager.performanceHudSize),
-        )
+        return hudPrefs.getHudConfig()
     }
 
     var performanceHudConfig by remember { mutableStateOf(loadPerformanceHudConfig()) }
@@ -603,24 +588,7 @@ fun XServerScreen(
     val performanceHudTouchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
 
     fun persistPerformanceHudConfig(config: PerformanceHudConfig) {
-        PrefManager.performanceHudShowFrameRate = config.showFrameRate
-        PrefManager.performanceHudShowCpuUsage = config.showCpuUsage
-        PrefManager.performanceHudShowGpuUsage = config.showGpuUsage
-        PrefManager.performanceHudShowRamUsage = config.showRamUsage
-        PrefManager.performanceHudShowBatteryLevel = config.showBatteryLevel
-        PrefManager.performanceHudShowPowerDraw = config.showPowerDraw
-        PrefManager.performanceHudShowBatteryRuntime = config.showBatteryRuntime
-        PrefManager.performanceHudShowBatteryTemperature = config.showBatteryTemperature
-        PrefManager.performanceHudShowClockTime = config.showClockTime
-        PrefManager.performanceHudShowCpuTemperature = config.showCpuTemperature
-        PrefManager.performanceHudShowGpuTemperature = config.showGpuTemperature
-        PrefManager.performanceHudShowFrameRateGraph = config.showFrameRateGraph
-        PrefManager.performanceHudShowCpuUsageGraph = config.showCpuUsageGraph
-        PrefManager.performanceHudShowGpuUsageGraph = config.showGpuUsageGraph
-        PrefManager.performanceHudBackgroundOpacity = config.backgroundOpacity
-        PrefManager.performanceHudColorIntensity = config.colorIntensity
-        PrefManager.performanceHudShowTextOutline = config.showTextOutline
-        PrefManager.performanceHudSize = config.size.prefValue
+        hudPrefs.setHudConfig(config)
     }
 
     fun applyPerformanceHudConfig(config: PerformanceHudConfig) {
@@ -734,14 +702,14 @@ fun XServerScreen(
         val maxX = (host.width - hud.width).coerceAtLeast(0).toFloat()
         val maxY = (host.height - hud.height).coerceAtLeast(0).toFloat()
         val margin = 12 * context.resources.displayMetrics.density
-        val savedX = PrefManager.performanceHudXFraction
-        val savedY = PrefManager.performanceHudYFraction
+        val savedX = hudPrefs.performanceHudXFraction
+        val savedY = hudPrefs.performanceHudYFraction
 
         hud.x = if (savedX in 0f..1f) maxX * savedX else margin.coerceAtMost(maxX)
         hud.y = if (savedY in 0f..1f) maxY * savedY else margin.coerceAtMost(maxY)
 
-        PrefManager.performanceHudXFraction = if (maxX > 0f) hud.x / maxX else 0f
-        PrefManager.performanceHudYFraction = if (maxY > 0f) hud.y / maxY else 0f
+        hudPrefs.performanceHudXFraction = if (maxX > 0f) hud.x / maxX else 0f
+        hudPrefs.performanceHudYFraction = if (maxY > 0f) hud.y / maxY else 0f
     }
 
     fun movePerformanceHud(rawX: Float, rawY: Float, save: Boolean) {
@@ -758,8 +726,8 @@ fun XServerScreen(
         hud.y = (rawY - hostLocation[1] - performanceHudDragOffsetY).coerceIn(0f, maxY)
 
         if (save) {
-            PrefManager.performanceHudXFraction = if (maxX > 0f) hud.x / maxX else 0f
-            PrefManager.performanceHudYFraction = if (maxY > 0f) hud.y / maxY else 0f
+            hudPrefs.performanceHudXFraction = if (maxX > 0f) hud.x / maxX else 0f
+            hudPrefs.performanceHudYFraction = if (maxY > 0f) hud.y / maxY else 0f
         }
     }
 
@@ -776,7 +744,7 @@ fun XServerScreen(
         val hud = performanceHudView ?: return
         val compactMode = !hud.isCompactMode()
         hud.setCompactMode(compactMode)
-        PrefManager.performanceHudCompactMode = compactMode
+        hudPrefs.performanceHudCompactMode = compactMode
         hud.post {
             if (performanceHudView === hud && !isDraggingPerformanceHud) {
                 restorePerformanceHudPosition()
@@ -808,7 +776,7 @@ fun XServerScreen(
                 }
             },
             initialConfig = performanceHudConfig,
-            initialCompactMode = PrefManager.performanceHudCompactMode,
+            initialCompactMode = hudPrefs.performanceHudCompactMode,
         )
         val layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -1104,7 +1072,7 @@ fun XServerScreen(
         anchor.post {
             if (anchor.windowToken != null) {
                 val show = {
-                    if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = analyticsEvent)
+                    if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = analyticsEvent)
                     val isExternalDisplaySession =
                         (anchor.display?.displayId ?: Display.DEFAULT_DISPLAY) != Display.DEFAULT_DISPLAY
 
@@ -1133,10 +1101,10 @@ fun XServerScreen(
 
             QuickMenuAction.INPUT_CONTROLS -> {
                 if (areControlsVisible) {
-                    if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = "onscreen_controller_disabled")
+                    if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = "onscreen_controller_disabled")
                     hideInputControls()
                 } else {
-                    if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = "onscreen_controller_enabled")
+                    if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = "onscreen_controller_enabled")
                     val manager = PluviaApp.inputControlsManager
                     val profiles = manager?.getProfiles(false) ?: listOf()
                     if (profiles.isNotEmpty()) {
@@ -1171,7 +1139,7 @@ fun XServerScreen(
             }
 
             QuickMenuAction.EDIT_CONTROLS -> {
-                if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = "edit_controls_in_game")
+                if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = "edit_controls_in_game")
                 keepPausedForEditor = true
 
                 // Get or create profile for this container
@@ -1319,23 +1287,23 @@ fun XServerScreen(
             }
 
             QuickMenuAction.EDIT_PHYSICAL_CONTROLLER -> {
-                if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = "edit_physical_controller_from_menu")
+                if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = "edit_physical_controller_from_menu")
                 keepPausedForEditor = true
                 showPhysicalControllerDialog = true
                 true
             }
 
             QuickMenuAction.RADIAL_MENU -> {
-                if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = "edit_radial_menu_from_menu")
+                if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = "edit_radial_menu_from_menu")
                 PluviaApp.radialMenuCoordinator?.showSettingsDialog() == true
             }
 
             QuickMenuAction.PERFORMANCE_HUD -> {
                 val enabled = !isPerformanceHudEnabled
                 isPerformanceHudEnabled = enabled
-                PrefManager.showFps = enabled
+                hudPrefs.showFps = enabled
                 updatePerformanceHud(enabled)
-                if (PrefManager.usageAnalyticsEnabled) {
+                if (generalPrefs.usageAnalyticsEnabled) {
                     PostHog.capture(
                         event = "performance_hud_toggled",
                         properties = mapOf("enabled" to enabled),
@@ -1350,7 +1318,7 @@ fun XServerScreen(
                     properties = buildMap {
                         put("game_name", ContainerUtils.resolveGameName(appId))
                         put("game_store", ContainerUtils.extractGameSourceFromContainerId(appId).name)
-                        if (PrefManager.usageAnalyticsEnabled) {
+                        if (generalPrefs.usageAnalyticsEnabled) {
                             put("max_controllers", ControllerManager.getInstance().sessionUsedControllerCount)
                             put("external_controller_used", ControllerManager.getInstance().sessionUsedExternalController)
                         }
@@ -1376,7 +1344,7 @@ fun XServerScreen(
             ?.isVisible(WindowInsetsCompat.Type.ime()) == true
 
         if (imeVisible) {
-            if (PrefManager.usageAnalyticsEnabled) PostHog.capture(event = "onscreen_keyboard_disabled")
+            if (generalPrefs.usageAnalyticsEnabled) PostHog.capture(event = "onscreen_keyboard_disabled")
             imeInputReceiver?.hideKeyboard()
             view.post {
                 if (Build.VERSION.SDK_INT >= 30) {
@@ -1941,9 +1909,9 @@ fun XServerScreen(
                     }
                 }
                 getxServer().renderer = renderer
-                PluviaApp.touchpadView = TouchpadView(context, getxServer(), PrefManager.getBoolean("capture_pointer_on_external_mouse", true))
+                PluviaApp.touchpadView = TouchpadView(context, getxServer(), inputPrefs.capturePointerOnExternalMouse)
                 frameLayout.addView(PluviaApp.touchpadView)
-                PluviaApp.touchpadView?.setMoveCursorToTouchpoint(PrefManager.getBoolean("move_cursor_to_touchpoint", false))
+                PluviaApp.touchpadView?.setMoveCursorToTouchpoint(inputPrefs.moveCursorToTouchpoint)
 
                 // Wire keyboard toggle callback for gesture "Show Keyboard" action.
                 // Mirrors the QuickMenuAction.KEYBOARD external-display routing
@@ -2365,7 +2333,6 @@ fun XServerScreen(
                 // Load profile for this container
                 val manager = PluviaApp.inputControlsManager
                 val profiles = manager?.getProfiles(false) ?: listOf()
-                PrefManager.init(context)
 
                 if (profiles.isNotEmpty()) {
                     // Check if container has a custom profile associated
@@ -2419,7 +2386,7 @@ fun XServerScreen(
                 }
 
                 // Set overlay opacity from preferences if needed
-                val opacity = PrefManager.getFloat("controls_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY)
+                val opacity = inputPrefs.controlsOpacity
                 setOverlayOpacity(opacity)
 
                 // Set container-level shooter mode
@@ -2782,7 +2749,7 @@ fun XServerScreen(
             },
         )
 
-        if (showQuickMenu && PrefManager.showControllerDebugMenu) {
+        if (showQuickMenu && inputPrefs.showControllerDebugMenu) {
             ControllerSlotStatusOverlay(
                 container = container,
                 areControlsVisible = areControlsVisible,
@@ -2833,10 +2800,7 @@ fun XServerScreen(
     if (showShooterModeDialog) {
         app.gamenative.ui.component.dialog.ShooterModeSettingsDialog(
             shooterConfig = currentShooterConfig,
-            defaultJoystickOpacity = PrefManager.getFloat(
-                "controls_opacity",
-                InputControlsView.DEFAULT_OVERLAY_OPACITY,
-            ),
+            defaultJoystickOpacity = inputPrefs.controlsOpacity,
             onDismiss = { showShooterModeDialog = false },
             onSave = { newConfig ->
                 currentShooterConfig = newConfig
@@ -3557,8 +3521,7 @@ fun setControlsOpacity(context: Context, opacity: Float) {
         icView.invalidate()
 
         // Save the preference for future sessions
-        PrefManager.init(context)
-        PrefManager.setFloat("controls_opacity", opacity)
+        PreferencesEntryPoint.get(context).inputPreferences().controlsOpacity = opacity
     }
 }
 
@@ -3725,9 +3688,10 @@ private fun setupXEnvironment(
 
     ProcessHelper.removeAllDebugCallbacks()
     // read user preferences
-    val enableWineDebug = PrefManager.enableWineDebug
+    val containerPrefs = PreferencesEntryPoint.get(context).containerPreferences()
+    val enableWineDebug = containerPrefs.enableWineDebug
     val enableBox86Logs = WinlatorPrefManager.getBoolean("enable_box86_64_logs", false)
-    val wineDebugChannels = PrefManager.wineDebugChannels
+    val wineDebugChannels = containerPrefs.wineDebugChannels
     // explicitly enable or disable Wine debug channels
     if (diagnostics) {
         envVars.put("WRAPPER_DIAG", "1")
@@ -4000,10 +3964,11 @@ private fun setupXEnvironment(
     // Moved here, as guestProgramLauncherComponent.environment is setup after addComponent()
     if (container != null) {
         if (container.isLaunchRealSteam) {
+            val authPrefs = PreferencesEntryPoint.get(context).authPreferences()
             SteamTokenLogin(
-                steamId = PrefManager.steamUserSteamId64.toString(),
-                login = PrefManager.username,
-                token = PrefManager.refreshToken,
+                steamId = authPrefs.steamUserSteamId64.toString(),
+                login = authPrefs.username,
+                token = authPrefs.refreshToken,
                 imageFs = imageFs,
                 guestProgramLauncherComponent = guestProgramLauncherComponent,
             ).setupSteamFiles()

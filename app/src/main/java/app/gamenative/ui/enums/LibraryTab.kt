@@ -5,8 +5,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.ui.graphics.vector.ImageVector
-import app.gamenative.PrefManager
+import app.gamenative.PluviaApp
 import app.gamenative.R
+import app.gamenative.preferences.PreferencesEntryPoint
 
 enum class LibraryTab(
     @get:StringRes val labelResId: Int,
@@ -101,7 +102,10 @@ enum class LibraryTab(
         val visibleEntries: List<LibraryTab>
             get() {
                 var result = entries.toList()
-                if (!PrefManager.showRecommendations) result = result.filter { it != RECOMMENDED }
+                val showRecommendations = runCatching {
+                    PluviaApp.instance?.let { PreferencesEntryPoint.get(it).libraryPreferences().showRecommendations } ?: true
+                }.getOrDefault(true)
+                if (!showRecommendations) result = result.filter { it != RECOMMENDED }
                 return result
             }
 

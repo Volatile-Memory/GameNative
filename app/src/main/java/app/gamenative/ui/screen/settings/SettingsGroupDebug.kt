@@ -29,7 +29,7 @@ import app.gamenative.ui.theme.settingsTileColorsDebug
 import com.alorma.compose.settings.ui.SettingsGroup
 import com.alorma.compose.settings.ui.SettingsMenuLink
 import com.alorma.compose.settings.ui.SettingsSwitch
-import app.gamenative.PrefManager
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.ui.theme.settingsTileColorsAlt
 import com.winlator.PrefManager as WinlatorPrefManager
@@ -47,15 +47,17 @@ fun SettingsGroupDebug() {
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
     if (!isPreview) {
-        PrefManager.init(context)
         WinlatorPrefManager.init(context)
+    }
+    val containerPrefs = remember(context, isPreview) {
+        if (isPreview) null else PreferencesEntryPoint.get(context).containerPreferences()
     }
 
     // Load Wine debug channels and prepare selection state
     var allWineChannels by remember { mutableStateOf<List<String>>(emptyList()) }
     var showChannelsDialog by remember { mutableStateOf(false) }
     var selectedWineChannels by remember { mutableStateOf(
-        if (isPreview) emptyList() else PrefManager.wineDebugChannels.split(",")
+        if (isPreview) emptyList() else containerPrefs?.wineDebugChannels?.split(",") ?: emptyList()
     ) }
     LaunchedEffect(Unit) {
         // Read the list of channels from assets
@@ -71,7 +73,7 @@ fun SettingsGroupDebug() {
         onSave = { newSelection ->
             selectedWineChannels = newSelection
             if (!isPreview) {
-                PrefManager.wineDebugChannels = newSelection.joinToString(",")
+                containerPrefs?.wineDebugChannels = newSelection.joinToString(",")
             }
             showChannelsDialog = false
         },
@@ -82,7 +84,7 @@ fun SettingsGroupDebug() {
     var showLogcatDialog by rememberSaveable { mutableStateOf(false) }
     // states for debug toggles
     var enableWineDebugPref by rememberSaveable {
-        mutableStateOf(if (isPreview) false else PrefManager.enableWineDebug)
+        mutableStateOf(if (isPreview) false else containerPrefs?.enableWineDebug ?: false)
     }
     var enableBox86Logs by rememberSaveable { mutableStateOf(
         if (isPreview) false else WinlatorPrefManager.getBoolean("enable_box86_64_logs", false)
@@ -206,7 +208,7 @@ fun SettingsGroupDebug() {
             onCheckedChange = {
                 enableWineDebugPref = it
                 if (!isPreview) {
-                    PrefManager.enableWineDebug = it
+                    containerPrefs?.enableWineDebug = it
                 }
             },
         )
