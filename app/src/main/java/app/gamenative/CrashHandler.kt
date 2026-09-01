@@ -1,6 +1,7 @@
 package app.gamenative
 
 import android.content.Context
+import app.gamenative.preferences.PreferencesEntryPoint
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -90,7 +91,7 @@ class CrashHandler(
     }
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
-        PrefManager.recentlyCrashed = true
+        PreferencesEntryPoint.get(context).generalPreferences().recentlyCrashed = true
 
         saveCrashToFile(throwable)
         defaultHandler?.uncaughtException(thread, throwable)

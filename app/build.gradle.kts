@@ -437,4 +437,9 @@ dependencies {
 
     "modernXrImplementation"("com.meta.horizon.platform.sdk:core-kotlin:0.2.2")
     "modernXrImplementation"("com.meta.horizon.platform.sdk:iap-kotlin:0.2.2")
+
+    // Core utilities
+    implementation("com.squareup.okio:okio:3.9.0")
+    testImplementation("com.squareup.okio:okio-fakefilesystem:3.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
 }

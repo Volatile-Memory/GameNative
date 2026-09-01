@@ -42,6 +42,7 @@ import com.winlator.widget.TouchpadView
 import com.winlator.widget.XServerRendererView
 import com.winlator.xenvironment.XEnvironment
 import timber.log.Timber
+import app.gamenative.preferences.PreferencesEntryPoint
 import dagger.hilt.android.HiltAndroidApp
 
 import kotlinx.coroutines.CoroutineScope
@@ -100,8 +101,6 @@ class PluviaApp : SplitCompatApplication() {
         // Init our custom crash handler.
         traceStartupStep("CrashHandler.initialize") { CrashHandler.initialize(this) }
 
-        // Init our datastore preferences.
-        traceStartupStep("PrefManager.init") { PrefManager.init(this) }
         traceStartupStep("FrontendSyncManager.init") { FrontendSyncManager.init(this) }
 
         // Initialize GOGConstants
@@ -145,11 +144,14 @@ class PluviaApp : SplitCompatApplication() {
             com.posthog.PostHog.register("build_flavor", BuildConfig.FLAVOR)
         }
 
-        if (PrefManager.usageAnalyticsEnabled) {
+        val entryPoint = PreferencesEntryPoint.get(this)
+        val generalPrefs = entryPoint.generalPreferences()
+        val libraryPrefs = entryPoint.libraryPreferences()
+        if (generalPrefs.usageAnalyticsEnabled) {
             com.posthog.PostHog.capture(
                 event = "\$set",
                 properties = mapOf(
-                    "\$set" to mapOf("recommendation_enabled" to PrefManager.showRecommendations),
+                    "\$set" to mapOf("recommendation_enabled" to libraryPrefs.showRecommendations),
                 ),
             )
         }
@@ -166,7 +168,8 @@ class PluviaApp : SplitCompatApplication() {
      * {filesDir}/ to {dataDir}/ to match Steam/Epic, and updates DB paths.
      */
     private fun migrateGogAmazonPaths() {
-        if (PrefManager.gogAmazonPathMigrated) return
+        val libraryPrefs = PreferencesEntryPoint.get(this).libraryPreferences()
+        if (libraryPrefs.gogAmazonPathMigrated) return
 
         val dataDir = dataDir.path
         val filesDir = filesDir.absolutePath
@@ -222,7 +225,7 @@ class PluviaApp : SplitCompatApplication() {
             }
         }
 
-        PrefManager.gogAmazonPathMigrated = true
+        libraryPrefs.gogAmazonPathMigrated = true
         Timber.i("[Migration] GOG/Amazon path migration complete")
     }
 
@@ -231,7 +234,7 @@ class PluviaApp : SplitCompatApplication() {
         val events: EventDispatcher = EventDispatcher()
         internal var onDestinationChangedListener: NavChangedListener? = null
 
-        private lateinit var instance: PluviaApp
+        lateinit var instance: PluviaApp
         private var cachedDefaultScreenSize: String? = null
 
         // TODO: find a way to make this saveable, this is terrible (leak that memory baby)
