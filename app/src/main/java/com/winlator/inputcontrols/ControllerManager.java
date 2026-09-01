@@ -14,8 +14,6 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 
-import app.gamenative.PrefManager;
-
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;

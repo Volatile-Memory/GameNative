@@ -68,7 +68,7 @@ GameNative's performance control system provides CPU and GPU tuning capabilities
    - Provides data classes: `CpuInfo`, `GpuInfo`
    - Exposes methods for CPU governor, frequency, and GPU control
    - **Profile Management**: Tracks `currentProfile` and synchronizes it with driver state
-   - **Profile Persistence**: Saves/restores profiles via `PrefManager` using JSON serialization
+   - **Profile Persistence**: Saves/restores profiles via `HudPreferences` using JSON serialization
    - **Automatic Sync**: All setter methods update both driver and `currentProfile` data
    - **Auto-Tuning Management**:
      - Tracks target FPS (from XServer frame rate limiter)

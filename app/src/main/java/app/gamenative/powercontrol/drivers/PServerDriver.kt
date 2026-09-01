@@ -5,13 +5,13 @@ import android.content.Context
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.Parcel
-import app.gamenative.PrefManager
 import app.gamenative.powercontrol.PowerBaseline
 import app.gamenative.powercontrol.PowerBaselineEntry
 import app.gamenative.powercontrol.PowerBaselineScripts
 import app.gamenative.powercontrol.PowerManager
 import app.gamenative.powercontrol.PowerProfile
 import app.gamenative.powercontrol.autotuning.DeviceGate
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.powercontrol.profiles.CpuGovernor
 import app.gamenative.powercontrol.profiles.PerformancePreset
 import kotlinx.serialization.json.Json
@@ -1287,7 +1287,7 @@ class PServerDriver(private val context: Context? = null) : PerformanceDriver() 
         val isTestedDevice = DeviceGate.isDeviceSupported()
 
         val defaultProfile = PowerProfile(
-            enablePowerControl = PrefManager.powerControlDefaultEnabled,
+            enablePowerControl = context?.let { PreferencesEntryPoint.get(it).hudPreferences().powerControlDefaultEnabled } ?: isTestedDevice,
             enableAdaptiveFpsCap = isTestedDevice,
             enableAutoTuning = isTestedDevice,
             enablePerClusterTuning = isTestedDevice,

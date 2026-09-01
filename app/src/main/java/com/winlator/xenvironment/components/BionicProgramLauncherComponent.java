@@ -53,6 +53,7 @@ import java.util.List;
 import app.gamenative.BuildConfig;
 import app.gamenative.PluviaApp;
 import app.gamenative.events.AndroidEvent;
+import app.gamenative.preferences.PreferencesEntryPoint;
 import app.gamenative.service.SteamService;
 
 public class BionicProgramLauncherComponent extends GuestProgramLauncherComponent {
@@ -521,7 +522,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         envVars.put("SteamClientService", "127.0.0.1:57344");
 
         // C. Wine-side Steam identity for steam_helper / games
-        String username = app.gamenative.PrefManager.INSTANCE.getUsername();
+        String username = PreferencesEntryPoint.get(environment.getContext()).authPreferences().getUsername();
         if (username != null && !username.isEmpty()) {
             envVars.put("SteamUser", username);
             // Mirrors what the real Steam client publishes; some Steamworks
@@ -533,7 +534,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         envVars.put("SteamPath", "C:\\Program Files (x86)\\Steam");
         envVars.put("ValvePlatformMutex", "c:\\Program Files (x86)\\Steam/");
 
-        long steamId64 = app.gamenative.PrefManager.INSTANCE.getSteamUserSteamId64();
+        long steamId64 = PreferencesEntryPoint.get(environment.getContext()).authPreferences().getSteamUserSteamId64();
         if (steamId64 != 0L) {
             envVars.put("STEAMID", Long.toString(steamId64));
         }
@@ -594,13 +595,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
 
         // Credentials for the explicit refresh-token logon path inside the .so.
-        // PrefManager.username is the Steam account login name; refreshToken is
+        // AuthPreferences.username is the Steam account login name; refreshToken is
         // the JWT-style token Steam issued during our app login; steamUserSteamId64
         // is the 64-bit SteamID. If any are missing we fall back to whatever
         // cached auto-logon libsteamclient.so can do on its own.
-        String accountName  = app.gamenative.PrefManager.INSTANCE.getUsername();
-        String refreshToken = app.gamenative.PrefManager.INSTANCE.getRefreshToken();
-        long   steamId64    = app.gamenative.PrefManager.INSTANCE.getSteamUserSteamId64();
+        String accountName  = PreferencesEntryPoint.get(environment.getContext()).authPreferences().getUsername();
+        String refreshToken = PreferencesEntryPoint.get(environment.getContext()).authPreferences().getRefreshToken();
+        long   steamId64    = PreferencesEntryPoint.get(environment.getContext()).authPreferences().getSteamUserSteamId64();
 
         try {
             int rc = app.gamenative.SteamBootstrap.INSTANCE.start(

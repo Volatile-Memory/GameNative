@@ -1,9 +1,9 @@
 package app.gamenative.powercontrol.drivers
 
 import android.content.Context
-import app.gamenative.PrefManager
 import app.gamenative.powercontrol.PowerProfile
 import app.gamenative.powercontrol.autotuning.DeviceGate
+import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.powercontrol.profiles.CpuGovernor
 import app.gamenative.powercontrol.profiles.PerformancePreset
 import com.samsung.sdk.sperf.CustomParams
@@ -261,7 +261,7 @@ class SamsungPerformanceDriver(private val context: Context) : PerformanceDriver
         // Default: Balanced profile (full range)
 
         return PowerProfile(
-            enablePowerControl = PrefManager.powerControlDefaultEnabled,
+            enablePowerControl = PreferencesEntryPoint.get(context).hudPreferences().powerControlDefaultEnabled,
             enableAdaptiveFpsCap = true,
             enableAutoTuning = false,
             enablePerClusterTuning = false,
