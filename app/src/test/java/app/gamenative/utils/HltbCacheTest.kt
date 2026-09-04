@@ -23,53 +23,54 @@ class HltbCacheTest {
     )
 
     private lateinit var generalPreferences: GeneralPreferences
+    private lateinit var hltbCache: HltbCache
 
     @Before
     fun setUp() {
         generalPreferences = mockk<GeneralPreferences>(relaxed = true)
         every { generalPreferences.hltbCache } returns "{}"
         every { generalPreferences.hltbCache = any() } just runs
-        HltbCache.reset()
+        hltbCache = HltbCache(generalPreferences)
     }
 
     @After
     fun tearDown() {
-        HltbCache.reset()
+        hltbCache.reset()
     }
 
     @Test
     fun get_returnsStoredStatsForNormalizedKeys() {
-        HltbCache.put("Hollow Knight!", sampleStats)
+        hltbCache.put("Hollow Knight!", sampleStats)
 
         listOf("Hollow Knight!", "hollow knight", "HOLLOW KNIGHT", "Hollow Knight")
             .forEach { key ->
-                assertNotNull(HltbCache.get(key))
-                assertEquals(sampleStats, HltbCache.get(key))
+                assertNotNull(hltbCache.get(key))
+                assertEquals(sampleStats, hltbCache.get(key))
             }
     }
 
     @Test
     fun get_returnsNullForMissingEntry() {
-        assertNull(HltbCache.get("Unknown Game"))
+        assertNull(hltbCache.get("Unknown Game"))
     }
 
     @Test
     fun put_evictsOldestWhenCapReached() {
         repeat(HltbCache.MAX_ENTRIES) { index ->
-            HltbCache.put("Game $index", sampleStats)
+            hltbCache.put("Game $index", sampleStats)
         }
-        assertNotNull(HltbCache.get("Game 0"))
+        assertNotNull(hltbCache.get("Game 0"))
 
-        HltbCache.put("Overflow Game", sampleStats)
+        hltbCache.put("Overflow Game", sampleStats)
 
-        assertNull(HltbCache.get("Game 0"))
-        assertNotNull(HltbCache.get("Overflow Game"))
+        assertNull(hltbCache.get("Game 0"))
+        assertNotNull(hltbCache.get("Overflow Game"))
     }
 
     @Test
     fun reset_clearsAllEntries() {
-        HltbCache.put("Halo", sampleStats)
-        HltbCache.reset()
-        assertNull(HltbCache.get("Halo"))
+        hltbCache.put("Halo", sampleStats)
+        hltbCache.reset()
+        assertNull(hltbCache.get("Halo"))
     }
 }

@@ -6,16 +6,20 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Persistent cache for game compatibility responses with 7-day TTL.
  * Uses lazy expiration - checks expiration on access, not on load (optimizes performance).
  */
-object GameCompatibilityCache {
-    private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L // 6 hours
-
-    @Volatile
-    var preferences: GeneralPreferences? = null
+@Singleton
+class GameCompatibilityCache @Inject constructor(
+    private val generalPreferences: GeneralPreferences,
+) {
+    companion object {
+        private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L // 6 hours
+    }
 
     private val inMemoryCache = mutableMapOf<String, GameCompatibilityService.GameCompatibilityResponse>()
     private val timestamps = mutableMapOf<String, Long>()
@@ -69,12 +73,12 @@ object GameCompatibilityCache {
      * Loads cache from persistent storage into memory.
      * Only parses JSON, no expiration filtering (lazy expiration).
      */
-    private fun loadCache(prefs: GeneralPreferences? = preferences) {
+    @Synchronized
+    private fun loadCache() {
         if (cacheLoaded) return
 
         try {
-            val targetPrefs = prefs ?: preferences
-            val cacheJson = targetPrefs?.gameCompatibilityCache ?: ""
+            val cacheJson = generalPreferences.gameCompatibilityCache
             if (cacheJson.isEmpty() || cacheJson == "{}") {
                 cacheLoaded = true
                 return
@@ -100,7 +104,8 @@ object GameCompatibilityCache {
     /**
      * Saves cache to persistent storage.
      */
-    private fun saveCache(prefs: GeneralPreferences? = preferences) {
+    @Synchronized
+    private fun saveCache() {
         try {
             val now = System.currentTimeMillis()
             val cacheMap = inMemoryCache.mapValues { (gameName, response) ->
@@ -108,8 +113,7 @@ object GameCompatibilityCache {
                 CachedCompatibilityResponse(response.toData(), timestamp)
             }
             val cacheJson = Json.encodeToString(cacheMap)
-            val targetPrefs = prefs ?: preferences
-            targetPrefs?.let { it.gameCompatibilityCache = cacheJson }
+            generalPreferences.gameCompatibilityCache = cacheJson
             Timber.tag("GameCompatibilityCache").d("Saved ${cacheMap.size} entries to persistent storage")
         } catch (e: Exception) {
             Timber.tag("GameCompatibilityCache").e(e, "Failed to save cache to persistent storage")
@@ -120,6 +124,7 @@ object GameCompatibilityCache {
      * Gets cached compatibility response for a game, if available and not expired.
      * Uses lazy expiration - checks expiration on access.
      */
+    @Synchronized
     fun getCached(gameName: String): GameCompatibilityService.GameCompatibilityResponse? {
         loadCache()
 
@@ -142,6 +147,7 @@ object GameCompatibilityCache {
     /**
      * Caches a compatibility response for a game.
      */
+    @Synchronized
     fun cache(gameName: String, response: GameCompatibilityService.GameCompatibilityResponse) {
         loadCache()
         val now = System.currentTimeMillis()
@@ -154,6 +160,7 @@ object GameCompatibilityCache {
     /**
      * Caches multiple compatibility responses at once.
      */
+    @Synchronized
     fun cacheAll(responses: Map<String, GameCompatibilityService.GameCompatibilityResponse>) {
         loadCache()
         val now = System.currentTimeMillis()
@@ -168,6 +175,7 @@ object GameCompatibilityCache {
     /**
      * Checks if a game's compatibility is cached and not expired.
      */
+    @Synchronized
     fun isCached(gameName: String): Boolean {
         loadCache()
         return getCached(gameName) != null
@@ -176,17 +184,18 @@ object GameCompatibilityCache {
     /**
      * Clears the entire cache (both memory and persistent storage).
      */
-    fun clear(prefs: GeneralPreferences? = preferences) {
+    @Synchronized
+    fun clear() {
         inMemoryCache.clear()
         timestamps.clear()
-        val targetPrefs = prefs ?: preferences
-        targetPrefs?.let { it.gameCompatibilityCache = "{}" }
+        generalPreferences.gameCompatibilityCache = "{}"
         Timber.tag("GameCompatibilityCache").d("Cache cleared")
     }
 
     /**
      * Gets the current cache size.
      */
+    @Synchronized
     fun size(): Int {
         loadCache()
         return inMemoryCache.size

@@ -1,8 +1,9 @@
 package app.gamenative.sync
 
-import android.content.Context
 import app.gamenative.PluviaApp
 import app.gamenative.R
+import app.gamenative.core.appinfo.StringResolver
+import app.gamenative.core.coroutines.ApplicationScope
 import app.gamenative.data.GameSource
 import app.gamenative.db.dao.AmazonGameDao
 import app.gamenative.db.dao.EpicGameDao
@@ -10,18 +11,11 @@ import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.SteamAppDao
 import app.gamenative.events.AndroidEvent
 import app.gamenative.preferences.DownloadPreferences
-import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.service.SteamService
 import app.gamenative.ui.util.SnackbarManager
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +25,8 @@ import timber.log.Timber
 import java.io.File
 import java.util.Collections
 import java.util.EnumMap
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Manages per-source export files that frontend launchers (e.g. ES-DE) use to
@@ -39,25 +35,16 @@ import java.util.EnumMap
  * its source. Files are created on install and removed on uninstall via
  * [AndroidEvent.LibraryInstallStatusChanged].
  */
-object FrontendSyncManager {
-
-    @EntryPoint
-    @InstallIn(SingletonComponent::class)
-    interface FrontendSyncEntryPoint {
-        fun steamAppDao(): SteamAppDao
-        fun epicGameDao(): EpicGameDao
-        fun gogGameDao(): GOGGameDao
-        fun amazonGameDao(): AmazonGameDao
-    }
-
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    private lateinit var appContext: Context
-    private lateinit var steamAppDao: SteamAppDao
-    private lateinit var epicGameDao: EpicGameDao
-    private lateinit var gogGameDao: GOGGameDao
-    private lateinit var amazonGameDao: AmazonGameDao
-    private lateinit var downloadPreferences: DownloadPreferences
+@Singleton
+class FrontendSyncManager @Inject constructor(
+    @ApplicationScope private val scope: CoroutineScope,
+    private val downloadPreferences: DownloadPreferences,
+    private val stringResolver: StringResolver,
+    private val steamAppDao: SteamAppDao,
+    private val epicGameDao: EpicGameDao,
+    private val gogGameDao: GOGGameDao,
+    private val amazonGameDao: AmazonGameDao,
+) {
 
     /** True while a [resyncAll] job is in progress. */
     private val _isSyncing = MutableStateFlow(false)
@@ -79,20 +66,7 @@ object FrontendSyncManager {
         }
     }
 
-    /**
-     * Initialises the manager, loads stored export directories from preferences,
-     * and runs an initial sync for every configured source.
-     * Must be called once from [app.gamenative.PluviaApp.onCreate].
-     */
-    fun init(context: Context) {
-        appContext = context.applicationContext
-        val ep = EntryPointAccessors.fromApplication(context, FrontendSyncEntryPoint::class.java)
-        steamAppDao = ep.steamAppDao()
-        epicGameDao = ep.epicGameDao()
-        gogGameDao = ep.gogGameDao()
-        amazonGameDao = ep.amazonGameDao()
-        downloadPreferences = context.preferencesEntryPoint().downloadPreferences()
-
+    init {
         PluviaApp.events.on<AndroidEvent.LibraryInstallStatusChanged, Unit>(onInstallStatusChanged)
 
         scope.launch {
@@ -135,7 +109,7 @@ object FrontendSyncManager {
                     ensureActive()
                     syncAllInstalledGames(source, dir)
                 }
-                SnackbarManager.show(appContext.getString(R.string.frontend_sync_resync_complete))
+                SnackbarManager.show(stringResolver.getString(R.string.frontend_sync_resync_complete))
             } finally {
                 _isSyncing.value = false
             }
@@ -264,3 +238,4 @@ object FrontendSyncManager {
         }
     }
 }
+

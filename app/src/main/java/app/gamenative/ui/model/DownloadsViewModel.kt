@@ -49,6 +49,7 @@ class DownloadsViewModel @Inject constructor(
     private val epicGameDao: EpicGameDao,
     private val gogGameDao: GOGGameDao,
     private val amazonGameDao: AmazonGameDao,
+    private val customGameScanner: CustomGameScanner,
 ) : ViewModel() {
 
     private data class ActiveDownloadBinding(
@@ -269,7 +270,7 @@ class DownloadsViewModel @Inject constructor(
             }
 
             GameSource.CUSTOM_GAME -> {
-                CustomGameScanner.scanAsLibraryItems(query = "")
+                customGameScanner.scanAsLibraryItems(query = "")
                     .firstOrNull { it.appId == libraryAppId }
             }
         }

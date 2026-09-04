@@ -27,8 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
 import app.gamenative.data.GameSource
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.preferences.PreferencesEntryPoint
-import app.gamenative.sync.FrontendSyncManager
 import app.gamenative.ui.components.rememberCustomGameFolderPicker
 
 /**
@@ -37,6 +37,8 @@ import app.gamenative.ui.components.rememberCustomGameFolderPicker
  */
 @Composable
 fun FrontendSyncDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val frontendSyncManager = remember(context) { context.appUtilsEntryPoint().frontendSyncManager() }
     val sources = listOf(
         GameSource.STEAM to stringResource(R.string.frontend_sync_source_steam),
         GameSource.EPIC to stringResource(R.string.frontend_sync_source_epic),
@@ -66,10 +68,10 @@ fun FrontendSyncDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 pendingChanges.forEach { (source, change) ->
-                    FrontendSyncManager.changeDirectory(source, change.first, change.second)
+                    frontendSyncManager.changeDirectory(source, change.first, change.second)
                 }
                 if (pendingChanges.isNotEmpty()) {
-                    FrontendSyncManager.resyncAll()
+                    frontendSyncManager.resyncAll()
                 }
                 onDismiss()
             }) {
@@ -161,7 +163,7 @@ private fun FrontendSyncSourceRow(
                 Text(
                     stringResource(
                         R.string.frontend_sync_clear_confirm_message,
-                        FrontendSyncManager.extensionFor(source).trimStart('.'),
+                        context.appUtilsEntryPoint().frontendSyncManager().extensionFor(source).trimStart('.'),
                     )
                 )
             },

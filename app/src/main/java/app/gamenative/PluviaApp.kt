@@ -11,8 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavController
-import app.gamenative.data.FavoritesManager
-import app.gamenative.data.FavoritesRepository
 import app.gamenative.db.dao.AmazonGameDao
 import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.events.EventDispatcher
@@ -20,7 +18,6 @@ import app.gamenative.powercontrol.PowerManager
 import app.gamenative.service.ActiveGameRegistry
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
-import app.gamenative.sync.FrontendSyncManager
 import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.IntentLaunchManager
@@ -57,7 +54,6 @@ class PluviaApp : SplitCompatApplication() {
 
     @Inject lateinit var gogGameDao: GOGGameDao
     @Inject lateinit var amazonGameDao: AmazonGameDao
-    @Inject lateinit var favoritesRepository: FavoritesRepository
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -77,8 +73,6 @@ class PluviaApp : SplitCompatApplication() {
         val appCreateStart = SystemClock.elapsedRealtime()
         super.onCreate()
         instance = this
-
-        FavoritesManager.delegate = favoritesRepository
 
         traceStartupStep("preloadSystemLibraries") { preloadSystemLibraries() }
 
@@ -100,8 +94,6 @@ class PluviaApp : SplitCompatApplication() {
 
         // Init our custom crash handler.
         traceStartupStep("CrashHandler.initialize") { CrashHandler.initialize(this) }
-
-        traceStartupStep("FrontendSyncManager.init") { FrontendSyncManager.init(this) }
 
         // Initialize GOGConstants
         traceStartupStep("GOGConstants.init") { app.gamenative.service.gog.GOGConstants.init(this) }

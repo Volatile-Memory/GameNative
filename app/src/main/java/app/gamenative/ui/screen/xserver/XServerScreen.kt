@@ -125,7 +125,7 @@ import app.gamenative.ui.widget.PerformanceHudView
 import app.gamenative.utils.AssetUtils
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.downloader.CoreDriverDownloader
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.utils.ExecutableSelectionUtils
 import app.gamenative.utils.LsfgQuickMenuHelper
 import app.gamenative.utils.LsfgVkManager
@@ -4432,7 +4432,7 @@ private fun getWineStartCommand(
                 Timber.tag("XServerScreen").e("Could not find A: drive for Custom Game: $appId")
                 return "winhandler.exe \"wfm.exe\""
             }
-            val auto = CustomGameScanner.findUniqueExeRelativeToFolder(gameFolderPath!!)
+            val auto = context.appUtilsEntryPoint().customGameScanner().findUniqueExeRelativeToFolder(gameFolderPath!!)
             if (auto != null) {
                 Timber.tag("XServerScreen").i("Auto-selected Custom Game exe: $auto")
                 executablePath = auto

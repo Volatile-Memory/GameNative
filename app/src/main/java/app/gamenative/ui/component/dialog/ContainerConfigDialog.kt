@@ -93,7 +93,7 @@ import app.gamenative.ui.components.requestPermissionsForPath
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.settingsTileColors
 import app.gamenative.ui.theme.settingsTileColorsAlt
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.ManifestComponentHelper
 import app.gamenative.utils.ManifestContentTypes
@@ -1012,7 +1012,7 @@ fun ContainerConfigDialog(
                 } catch (_: Exception) {
                     false
                 }
-                if (!canAccess && !CustomGameScanner.hasStoragePermission(context, path)) {
+                if (!canAccess && !context.appUtilsEntryPoint().customGameScanner().hasStoragePermission(context, path)) {
                     requestPermissionsForPath(context, path, storagePermissionLauncher)
                 }
 

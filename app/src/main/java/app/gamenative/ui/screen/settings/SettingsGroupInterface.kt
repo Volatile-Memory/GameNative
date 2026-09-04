@@ -99,17 +99,19 @@ import app.gamenative.service.amazon.AmazonAuthManager
 import app.gamenative.utils.PlatformOAuthHandlers
 import app.gamenative.utils.StorageUtils
 import app.gamenative.data.GameSource
-import app.gamenative.sync.FrontendSyncManager
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.ui.util.PlatformAuthUiHelpers
 import app.gamenative.ui.util.SnackbarManager
 
-/** Icon button that triggers [FrontendSyncManager.resyncAll] and shows a spinner while syncing. */
+/** Icon button that triggers FrontendSyncManager.resyncAll and shows a spinner while syncing. */
 @Composable
 private fun FrontendSyncResyncButton() {
-    val isSyncing by FrontendSyncManager.isSyncing.collectAsState()
+    val context = LocalContext.current
+    val frontendSyncManager = remember(context) { context.appUtilsEntryPoint().frontendSyncManager() }
+    val isSyncing by frontendSyncManager.isSyncing.collectAsState()
     val resyncLabel = stringResource(R.string.frontend_sync_resync_all)
     IconButton(
-        onClick = { FrontendSyncManager.resyncAll() },
+        onClick = { frontendSyncManager.resyncAll() },
         modifier = Modifier.semantics { contentDescription = resyncLabel },
     ) {
         if (isSyncing) {
@@ -423,7 +425,8 @@ fun SettingsGroupInterface(
         )
 
         if (!BuildConfig.MODERN_ANDROID) {
-            val anyFrontendSyncConfigured by FrontendSyncManager.anyConfigured.collectAsState()
+            val frontendSyncManager = remember(context) { context.appUtilsEntryPoint().frontendSyncManager() }
+            val anyFrontendSyncConfigured by frontendSyncManager.anyConfigured.collectAsState()
             SettingsMenuLink(
                 colors = settingsTileColorsAlt(),
                 title = { Text(text = stringResource(R.string.settings_interface_frontend_sync_title)) },

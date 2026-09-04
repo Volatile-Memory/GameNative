@@ -21,6 +21,8 @@ class HltbServiceIntegrationTest {
 
     private lateinit var server: MockWebServer
     private lateinit var generalPreferences: GeneralPreferences
+    private lateinit var hltbCache: HltbCache
+    private lateinit var hltbService: HltbService
 
     @Before
     fun setUp() {
@@ -31,14 +33,15 @@ class HltbServiceIntegrationTest {
         every { generalPreferences.hltbCache } returns "{}"
         every { generalPreferences.hltbCache = any() } just runs
 
-        HltbCache.reset()
-        HltbService.setApiBaseUrlForTesting(server.url("/").toString().removeSuffix("/"))
+        hltbCache = HltbCache(generalPreferences)
+        hltbService = HltbService(hltbCache)
+        hltbService.setApiBaseUrlForTesting(server.url("/").toString().removeSuffix("/"))
     }
 
     @After
     fun tearDown() {
-        HltbService.resetForTesting()
-        HltbCache.reset()
+        hltbService.resetForTesting()
+        hltbCache.reset()
         server.shutdown()
     }
 
@@ -50,7 +53,7 @@ class HltbServiceIntegrationTest {
             game("Halo", 3600, 5400, 7200, 9000, 1),
         )
 
-        val stats = HltbService.getStats("Halo")
+        val stats = hltbService.getStats("Halo")
 
         assertNotNull(stats)
         assertEquals("1.0", stats?.mainHours)
@@ -87,9 +90,9 @@ class HltbServiceIntegrationTest {
         enqueueAuthResponse()
         enqueueSearchResponse(game("Celeste", 14400, 21600, 28800, 32400, 99))
 
-        val first = HltbService.getStats("Celeste")
+        val first = hltbService.getStats("Celeste")
         val requestCountAfterFirstCall = server.requestCount
-        val second = HltbService.getStats("Celeste")
+        val second = hltbService.getStats("Celeste")
 
         assertEquals(first, second)
         assertEquals(2, requestCountAfterFirstCall)
@@ -101,7 +104,7 @@ class HltbServiceIntegrationTest {
         enqueueAuthResponse()
         enqueueSearchResponse(game("Empty Game", 0, 0, 0, 0, 404))
 
-        assertNull(HltbService.getStats("Empty Game"))
+        assertNull(hltbService.getStats("Empty Game"))
         assertEquals(2, server.requestCount)
     }
 
@@ -110,7 +113,7 @@ class HltbServiceIntegrationTest {
         enqueueAuthResponse()
         enqueueSearchResponse(game("Broken Age: The Complete Adventure", 37050, 45000, 54000, 40500, 232))
 
-        val stats = HltbService.getStats("Broken Age")
+        val stats = hltbService.getStats("Broken Age")
 
         assertNotNull(stats)
         assertEquals("10.3", stats?.mainHours)
@@ -122,7 +125,7 @@ class HltbServiceIntegrationTest {
         enqueueAuthResponse()
         enqueueSearchResponse(game("Armored Core VI: Fires of Rubicon", 63440, 102226, 183507, 102179, 18811))
 
-        val stats = HltbService.getStats("ARMORED CORE™ VI FIRES OF RUBICON™")
+        val stats = hltbService.getStats("ARMORED CORE™ VI FIRES OF RUBICON™")
 
         assertNotNull(stats)
         assertEquals("17.6", stats?.mainHours)
@@ -140,10 +143,10 @@ class HltbServiceIntegrationTest {
         server.enqueue(MockResponse().setResponseCode(500))
         enqueueSearchResponse(game("Celeste", 14400, 21600, 28800, 32400, 99))
 
-        assertNull(HltbService.getStats("Celeste"))
+        assertNull(hltbService.getStats("Celeste"))
         assertEquals(2, server.requestCount)
 
-        val stats = HltbService.getStats("Celeste")
+        val stats = hltbService.getStats("Celeste")
 
         assertNotNull(stats)
         assertEquals("4.0", stats?.mainHours)

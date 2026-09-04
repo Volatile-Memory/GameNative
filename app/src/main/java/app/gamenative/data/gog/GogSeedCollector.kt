@@ -8,7 +8,7 @@ import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.LibraryPlayHistoryDao
 import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.service.SteamService
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.di.appUtilsEntryPoint
 import kotlinx.coroutines.flow.first
 
 /**
@@ -71,7 +71,7 @@ object GogSeedCollector {
             )
         }
 
-        runCatching { CustomGameScanner.scanAsLibraryItems() }.getOrNull()?.forEach { item ->
+        runCatching { context.appUtilsEntryPoint().customGameScanner().scanAsLibraryItems() }.getOrNull()?.forEach { item ->
             refs += OwnedGameRef(name = item.name, lastPlayed = history[item.appId] ?: 0L)
         }
 

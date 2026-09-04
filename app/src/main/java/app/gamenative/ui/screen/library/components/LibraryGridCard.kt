@@ -72,7 +72,7 @@ import app.gamenative.ui.data.GameCardStats
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.ListItemImage
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.di.appUtilsEntryPoint
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
 import java.io.File
@@ -669,9 +669,10 @@ internal fun getGridImageUrl(
     appInfo: LibraryItem,
     paneType: PaneType,
 ): GridImageUrls {
+    val scanner = context.appUtilsEntryPoint().customGameScanner()
     fun findSteamGridDBImage(imageType: String): String? {
         if (appInfo.gameSource == GameSource.CUSTOM_GAME) {
-            val gameFolderPath = CustomGameScanner.getFolderPathFromAppId(appInfo.appId)
+            val gameFolderPath = scanner.getFolderPathFromAppId(appInfo.appId)
             gameFolderPath?.let { path ->
                 val folder = File(path)
                 val imageFile = folder.listFiles()?.firstOrNull { file ->
@@ -693,18 +694,18 @@ internal fun getGridImageUrl(
             val primary = when (paneType) {
                 PaneType.GRID_CAPSULE ->
                     // Capsule (vertical): user "coverv"/"cover" wins over SteamGridDB capsule.
-                    CustomGameScanner.findCapsuleCoverForCustomGame(appInfo.appId)
+                    scanner.findCapsuleCoverForCustomGame(appInfo.appId)
                         ?: findSteamGridDBImage("grid_capsule")
                         ?: appInfo.capsuleImageUrl
                 PaneType.GRID_HERO ->
                     // Hero (horizontal): user "coverh"/"cover" wins over SteamGridDB hero.
-                    CustomGameScanner.findHeroCoverForCustomGame(appInfo.appId)
+                    scanner.findHeroCoverForCustomGame(appInfo.appId)
                         ?: findSteamGridDBImage("grid_hero")
                         ?: appInfo.headerImageUrl
                 else -> {
                     // Default/carousel banner is also a horizontal hero view.
-                    val heroCover = CustomGameScanner.findHeroCoverForCustomGame(appInfo.appId)
-                    val gameFolderPath = CustomGameScanner.getFolderPathFromAppId(appInfo.appId)
+                    val heroCover = scanner.findHeroCoverForCustomGame(appInfo.appId)
+                    val gameFolderPath = scanner.getFolderPathFromAppId(appInfo.appId)
                     val heroUrl = gameFolderPath?.let { path ->
                         val folder = File(path)
                         val heroFile = folder.listFiles()?.firstOrNull { file ->

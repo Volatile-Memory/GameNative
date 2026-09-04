@@ -11,7 +11,6 @@ import androidx.lifecycle.viewModelScope
 import app.gamenative.BuildConfig
 import app.gamenative.PluviaApp
 import app.gamenative.R
-import app.gamenative.data.FavoritesManager
 import app.gamenative.data.FavoritesRepository
 import app.gamenative.data.FavoritesUtils
 import app.gamenative.data.GameCompatibilityStatus
@@ -99,6 +98,10 @@ class LibraryViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val libraryPreferences: LibraryPreferences,
     private val authPreferences: AuthPreferences,
+    private val deviceGameStatsCache: DeviceGameStatsCache,
+    private val gpuGameStatsCache: GpuGameStatsCache,
+    private val gameCompatibilityCache: GameCompatibilityCache,
+    private val customGameScanner: CustomGameScanner,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -192,12 +195,12 @@ class LibraryViewModel @Inject constructor(
     init {
         viewModelScope.launch(Dispatchers.IO) {
             if (gpuName != "Unknown GPU") {
-                DeviceGameStatsCache.refreshIfStale(
+                deviceGameStatsCache.refreshIfStale(
                     deviceModel = HardwareUtils.getMachineName(),
                     gpuName = gpuName,
                     modernBuild = BuildConfig.MODERN_ANDROID,
                 )
-                GpuGameStatsCache.refreshIfStale(
+                gpuGameStatsCache.refreshIfStale(
                     gpuName = gpuName,
                     modernBuild = BuildConfig.MODERN_ANDROID,
                 )
@@ -206,8 +209,8 @@ class LibraryViewModel @Inject constructor(
             }
             _state.update {
                 it.copy(
-                    deviceGameStats = DeviceGameStatsCache.getAll(),
-                    gpuGameStats = GpuGameStatsCache.getAll(),
+                    deviceGameStats = deviceGameStatsCache.getAll(),
+                    gpuGameStats = gpuGameStatsCache.getAll(),
                 )
             }
             // Re-run filtering/sorting now that stats are available, if anything depends on them.
@@ -519,9 +522,9 @@ class LibraryViewModel @Inject constructor(
             _state.update { it.copy(isRefreshing = true) }
 
             // Clear compatibility cache on manual refresh to get fresh data
-            GameCompatibilityCache.clear()
-            DeviceGameStatsCache.clear()
-            GpuGameStatsCache.clear()
+            gameCompatibilityCache.clear()
+            deviceGameStatsCache.clear()
+            gpuGameStatsCache.clear()
 
             try {
                 val newApps = SteamService.refreshOwnedGamesFromServer()
@@ -548,12 +551,12 @@ class LibraryViewModel @Inject constructor(
                     fetchCompatibilityForPage(currentPageGames)
                 }
                 if (gpuName != "Unknown GPU") {
-                    DeviceGameStatsCache.refreshIfStale(
+                    deviceGameStatsCache.refreshIfStale(
                         deviceModel = HardwareUtils.getMachineName(),
                         gpuName = gpuName,
                         modernBuild = BuildConfig.MODERN_ANDROID,
                     )
-                    GpuGameStatsCache.refreshIfStale(
+                    gpuGameStatsCache.refreshIfStale(
                         gpuName = gpuName,
                         modernBuild = BuildConfig.MODERN_ANDROID,
                     )
@@ -561,8 +564,8 @@ class LibraryViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         isRefreshing = false,
-                        deviceGameStats = DeviceGameStatsCache.getAll(),
-                        gpuGameStats = GpuGameStatsCache.getAll(),
+                        deviceGameStats = deviceGameStatsCache.getAll(),
+                        gpuGameStats = gpuGameStatsCache.getAll(),
                     )
                 }
                 if (usesStats(_state.value)) {
@@ -606,7 +609,7 @@ class LibraryViewModel @Inject constructor(
     fun addCustomGameFolder(path: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val normalizedPath = File(path).absolutePath
-            val libraryItem = CustomGameScanner.createLibraryItemFromFolder(normalizedPath)
+            val libraryItem = customGameScanner.createLibraryItemFromFolder(normalizedPath)
             if (libraryItem == null) {
                 Timber.tag("LibraryViewModel").w("Selected folder is not a valid custom game: $normalizedPath")
                 return@launch
@@ -618,7 +621,7 @@ class LibraryViewModel @Inject constructor(
                 libraryPreferences.customGameManualFolders = manualFolders
             }
 
-            CustomGameScanner.invalidateCache()
+            customGameScanner.invalidateCache()
             onFilterApps(paginationCurrentPage)
         }
     }
@@ -678,7 +681,7 @@ class LibraryViewModel @Inject constructor(
                 if (!currentState.appInfoSortType.contains(AppFilter.COMPATIBLE)) {
                     return true
                 }
-                val cached = GameCompatibilityCache.getCached(gameName) ?: return true
+                val cached = gameCompatibilityCache.getCached(gameName) ?: return true
                 val status = compatibilityStatusFor(cached)
                 return status == GameCompatibilityStatus.COMPATIBLE || status == GameCompatibilityStatus.GPU_COMPATIBLE
             }
@@ -809,7 +812,7 @@ class LibraryViewModel @Inject constructor(
             // Scan Custom Games roots and create UI items (filtered by search query inside scanner)
             // Only include custom games if GAME filter is selected
             val customGameItems = if (currentState.appInfoSortType.contains(AppFilter.GAME)) {
-                CustomGameScanner.scanAsLibraryItems(
+                customGameScanner.scanAsLibraryItems(
                     query = currentState.searchQuery,
                 )
             } else {
@@ -1212,7 +1215,7 @@ class LibraryViewModel @Inject constructor(
                 val cachedResults = mutableMapOf<String, GameCompatibilityService.GameCompatibilityResponse>()
 
                 for (gameName in gameNames) {
-                    val cached = GameCompatibilityCache.getCached(gameName)
+                    val cached = gameCompatibilityCache.getCached(gameName)
                     if (cached != null) {
                         cachedResults[gameName] = cached
                         Timber.tag("LibraryViewModel").d("Using cached result for: $gameName")
@@ -1246,7 +1249,7 @@ class LibraryViewModel @Inject constructor(
                     if (batchResults != null) {
                         Timber.tag("LibraryViewModel").d("Received ${batchResults.size} results from API")
                         // Cache all results using batch caching
-                        GameCompatibilityCache.cacheAll(batchResults)
+                        gameCompatibilityCache.cacheAll(batchResults)
                         fetchedResults.putAll(batchResults)
                     } else {
                         Timber.tag("LibraryViewModel").w("API returned null for batch")

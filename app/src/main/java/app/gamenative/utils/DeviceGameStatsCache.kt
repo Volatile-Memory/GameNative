@@ -8,6 +8,8 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Persistent cache for the device-wide game stats blob with a 6-hour TTL.
@@ -15,11 +17,13 @@ import timber.log.Timber
  * Unlike [GameCompatibilityCache], the entire payload is fetched and stored as one unit with a
  * single timestamp, since the endpoint returns stats for all games in a single response.
  */
-object DeviceGameStatsCache {
-    private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L // 6 hours
-
-    @Volatile
-    var preferences: GeneralPreferences? = null
+@Singleton
+class DeviceGameStatsCache @Inject constructor(
+    private val generalPreferences: GeneralPreferences,
+) {
+    companion object {
+        private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L // 6 hours
+    }
 
     private var inMemory: Map<GameSource, Map<String, DeviceGameStats>> = emptyMap()
     private var loadedTimestamp: Long = 0L
@@ -48,11 +52,10 @@ object DeviceGameStatsCache {
     )
 
     @Synchronized
-    private fun loadCache(prefs: GeneralPreferences? = preferences) {
+    private fun loadCache() {
         if (cacheLoaded) return
         try {
-            val targetPrefs = prefs ?: preferences
-            val cacheJson = targetPrefs?.deviceGameStatsCache ?: ""
+            val cacheJson = generalPreferences.deviceGameStatsCache
             if (cacheJson.isNotEmpty() && cacheJson != "{}") {
                 val cached = Json.decodeFromString<CachedStats>(cacheJson)
                 inMemory = cached.stats.mapNotNull { (platform, games) ->
@@ -69,10 +72,10 @@ object DeviceGameStatsCache {
         cacheLoaded = true
     }
 
+    @Synchronized
     private fun saveCache(
         data: Map<GameSource, Map<String, DeviceGameStats>>,
         timestamp: Long,
-        prefs: GeneralPreferences? = preferences,
     ) {
         try {
             val serializable = CachedStats(
@@ -81,8 +84,7 @@ object DeviceGameStatsCache {
                 },
                 timestamp = timestamp,
             )
-            val targetPrefs = prefs ?: preferences
-            targetPrefs?.let { it.deviceGameStatsCache = Json.encodeToString(serializable) }
+            generalPreferences.deviceGameStatsCache = Json.encodeToString(serializable)
             Timber.tag("DeviceGameStatsCache").d("Saved ${data.values.sumOf { it.size }} game stats to persistent storage")
         } catch (e: Exception) {
             Timber.tag("DeviceGameStatsCache").e(e, "Failed to save cache to persistent storage")
@@ -104,30 +106,34 @@ object DeviceGameStatsCache {
 
         val fetched = DeviceGameStatsService.fetchForDevice(deviceModel, gpuName, modernBuild)
         if (fetched != null) {
-            inMemory = fetched
-            loadedTimestamp = now
-            saveCache(fetched, now)
+            synchronized(this) {
+                inMemory = fetched
+                loadedTimestamp = now
+                saveCache(fetched, now)
+            }
         }
     }
 
     /** Gets stats for a single game, if available. */
+    @Synchronized
     fun getStats(source: GameSource, gameName: String): DeviceGameStats? {
         loadCache()
         return inMemory[source]?.get(gameName)
     }
 
     /** Returns all cached stats, grouped by platform. */
+    @Synchronized
     fun getAll(): Map<GameSource, Map<String, DeviceGameStats>> {
         loadCache()
         return inMemory
     }
 
     /** Clears the entire cache (both memory and persistent storage). */
-    fun clear(prefs: GeneralPreferences? = preferences) {
+    @Synchronized
+    fun clear() {
         inMemory = emptyMap()
         loadedTimestamp = 0L
-        val targetPrefs = prefs ?: preferences
-        targetPrefs?.let { it.deviceGameStatsCache = "{}" }
+        generalPreferences.deviceGameStatsCache = "{}"
         Timber.tag("DeviceGameStatsCache").d("Cache cleared")
     }
 }

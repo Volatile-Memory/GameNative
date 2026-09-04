@@ -79,7 +79,6 @@ import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.data.GameCompatibilityStatus
-import app.gamenative.data.FavoritesManager
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.events.AndroidEvent
@@ -117,7 +116,6 @@ import app.gamenative.ui.util.PlatformLogoutCallbacks
 import app.gamenative.service.amazon.AmazonService
 import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGService
-import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.PlatformOAuthHandlers
 import app.gamenative.utils.SteamUtils
 import com.posthog.PostHog
@@ -368,8 +366,9 @@ private fun LibraryScreenContent(
     var wasOptionsPanelOpen by remember { mutableStateOf(false) }
     // Keep a stable reference to the selected item so detail view doesn't disappear during list refresh/pagination.
     var selectedLibraryItem by remember { mutableStateOf<LibraryItem?>(null) }
-    val favorites by FavoritesManager.favorites.collectAsStateWithLifecycle()
-    val favoritesLoaded by FavoritesManager.loaded.collectAsStateWithLifecycle()
+    val favoritesManager = remember(context) { context.appUtilsEntryPoint().favoritesManager() }
+    val favorites by favoritesManager.favorites.collectAsStateWithLifecycle()
+    val favoritesLoaded by favoritesManager.loaded.collectAsStateWithLifecycle()
     val filterFabExpanded by remember(currentPaneType, listState, carouselListState) {
         derivedStateOf {
             if (currentPaneType == PaneType.CAROUSEL) {
@@ -509,7 +508,7 @@ private fun LibraryScreenContent(
 
             // Only request permissions if we can't access the folder AND it's outside the sandbox
             // (folders selected via OpenDocumentTree should already be accessible)
-            if (!canAccess && !CustomGameScanner.hasStoragePermission(context, path)) {
+            if (!canAccess && !context.appUtilsEntryPoint().customGameScanner().hasStoragePermission(context, path)) {
                 requestPermissionsForPath(context, path, storagePermissionLauncher)
             }
             onAddCustomGameFolder(path)

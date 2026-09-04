@@ -15,7 +15,6 @@ import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.LibraryPlayHistoryDao
 import app.gamenative.service.SteamService
 import app.gamenative.service.gog.GOGAuthManager
-import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.DeviceGameStatsCache
 import app.gamenative.utils.DeviceGameStatsService.DeviceGameStats
 import app.gamenative.utils.GameCompatibilityCache
@@ -44,6 +43,9 @@ class GogRecommendationsViewModel @Inject constructor(
     private val epicGameDao: EpicGameDao,
     private val amazonGameDao: AmazonGameDao,
     @ApplicationContext private val context: Context,
+    private val gameCompatibilityCache: GameCompatibilityCache,
+    private val deviceGameStatsCache: DeviceGameStatsCache,
+    private val gpuGameStatsCache: GpuGameStatsCache,
 ) : ViewModel() {
 
     data class UiState(
@@ -98,13 +100,13 @@ class GogRecommendationsViewModel @Inject constructor(
         val responses = mutableMapOf<String, GameCompatibilityService.GameCompatibilityResponse>()
         val uncached = mutableListOf<String>()
         for (name in names.toSet()) {
-            val cached = GameCompatibilityCache.getCached(name)
+            val cached = gameCompatibilityCache.getCached(name)
             if (cached != null) responses[name] = cached else uncached.add(name)
         }
         if (gpuName != "Unknown GPU") {
             uncached.chunked(25).forEach { batch ->
                 GameCompatibilityService.fetchCompatibility(batch, gpuName)?.let {
-                    GameCompatibilityCache.cacheAll(it)
+                    gameCompatibilityCache.cacheAll(it)
                     responses.putAll(it)
                 }
             }
@@ -113,8 +115,8 @@ class GogRecommendationsViewModel @Inject constructor(
 
         // Device / GPU stats are keyed by source+name; recommendations are GOG, but community
         // stats mostly live under other sources, so look each name up across every source.
-        val deviceAll = DeviceGameStatsCache.getAll()
-        val gpuAll = GpuGameStatsCache.getAll()
+        val deviceAll = deviceGameStatsCache.getAll()
+        val gpuAll = gpuGameStatsCache.getAll()
         val deviceForRec = mapOf(GameSource.GOG to statsForNames(deviceAll, names))
         val gpuForRec = mapOf(GameSource.GOG to statsForNames(gpuAll, names))
         val gpuReviews = gpuForRec[GameSource.GOG].orEmpty()

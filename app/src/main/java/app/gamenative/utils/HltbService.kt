@@ -1,6 +1,8 @@
 package app.gamenative.utils
 
+import app.gamenative.core.coroutines.IoDispatcher
 import app.gamenative.preferences.GeneralPreferences
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -13,6 +15,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
 
 private val NON_ALPHANUMERIC = Regex("[^\\p{L}\\p{N}]")
 private val WHITESPACE = Regex("\\s+")
@@ -30,15 +34,38 @@ private fun normalizedKey(input: String) =
  * HLTB's CDN rejects HTTP/2 for this endpoint, so requests use the shared app client forced to HTTP/1.1.
  * Stats are cached for 12 hours.
  */
-object HltbService {
+@Singleton
+class HltbService @Inject constructor(
+    private val hltbCache: HltbCache,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
 
-    private const val DEFAULT_API_BASE_URL = "https://howlongtobeat.com"
-    private const val SEARCH_PATH = "/api/bleed"
-    private const val INIT_PATH = "$SEARCH_PATH/init"
-    private const val UA =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36"
-    const val GAME_URL = "https://howlongtobeat.com/game/"
-    const val UNKNOWN_HOURS = "--"
+    companion object {
+        const val GAME_URL = "https://howlongtobeat.com/game/"
+        const val UNKNOWN_HOURS = "--"
+        private const val DEFAULT_API_BASE_URL = "https://howlongtobeat.com"
+        private const val SEARCH_PATH = "/api/bleed"
+        private const val INIT_PATH = "$SEARCH_PATH/init"
+        private const val UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36"
+
+        internal fun formatHours(seconds: Long) = if (seconds <= 0) UNKNOWN_HOURS else "%.1f".format(seconds / 3600.0)
+        internal fun normalize(input: String) = normalizedKey(input)
+        internal fun levenshtein(left: String, right: String): Int {
+            if (left == right) return 0
+            val dp = Array(left.length + 1) { IntArray(right.length + 1) }
+            for (leftIndex in 0..left.length) dp[leftIndex][0] = leftIndex
+            for (rightIndex in 0..right.length) dp[0][rightIndex] = rightIndex
+            for (leftIndex in 1..left.length) for (rightIndex in 1..right.length)
+                dp[leftIndex][rightIndex] = minOf(
+                    dp[leftIndex - 1][rightIndex] + 1,
+                    dp[leftIndex][rightIndex - 1] + 1,
+                    dp[leftIndex - 1][rightIndex - 1] +
+                        (if (left[leftIndex - 1] == right[rightIndex - 1]) 0 else 1),
+                )
+            return dp[left.length][right.length]
+        }
+    }
 
     @Serializable
     data class Stats(
@@ -65,7 +92,7 @@ object HltbService {
         .build()
 
     /** Fetch auth tokens from the HLTB init endpoint. */
-    private suspend fun fetchAuth(): Auth? = withContext(Dispatchers.IO) {
+    private suspend fun fetchAuth(): Auth? = withContext(ioDispatcher) {
         try {
             val req = Request.Builder().url("$apiBaseUrl$INIT_PATH?t=${System.currentTimeMillis()}")
                 .header("Origin", apiBaseUrl).header("Referer", "$apiBaseUrl/").header("User-Agent", UA).build()
@@ -77,7 +104,7 @@ object HltbService {
     }
 
     /** POST the HLTB search API, returning the best-matching game's stats. */
-    private suspend fun search(name: String, a: Auth): SearchResult = withContext(Dispatchers.IO) {
+    private suspend fun search(name: String, a: Auth): SearchResult = withContext(ioDispatcher) {
         try {
             httpClient.newCall(buildSearchRequest(name, a)).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -100,9 +127,9 @@ object HltbService {
     }
 
     /** Public entry — cache-first, with one auth retry on failure. */
-    suspend fun getStats(name: String): Stats? = withContext(Dispatchers.IO) {
+    suspend fun getStats(name: String): Stats? = withContext(ioDispatcher) {
         if (name.isBlank()) return@withContext null
-        HltbCache.get(name)?.let { return@withContext it }
+        hltbCache.get(name)?.let { return@withContext it }
         val cachedAuth = auth ?: fetchAuth() ?: return@withContext null
         val stats = when (val firstAttempt = search(name, cachedAuth)) {
             is SearchResult.Found -> firstAttempt.stats
@@ -117,7 +144,7 @@ object HltbService {
                 }
             }
         }
-        HltbCache.put(name, stats)
+        hltbCache.put(name, stats)
         stats
     }
 
@@ -244,23 +271,6 @@ object HltbService {
         return distance <= distanceThreshold
     }
 
-    internal fun formatHours(seconds: Long) = if (seconds <= 0) UNKNOWN_HOURS else "%.1f".format(seconds / 3600.0)
-    internal fun normalize(input: String) = normalizedKey(input)
-    internal fun levenshtein(left: String, right: String): Int {
-        if (left == right) return 0
-        val dp = Array(left.length + 1) { IntArray(right.length + 1) }
-        for (leftIndex in 0..left.length) dp[leftIndex][0] = leftIndex
-        for (rightIndex in 0..right.length) dp[0][rightIndex] = rightIndex
-        for (leftIndex in 1..left.length) for (rightIndex in 1..right.length)
-            dp[leftIndex][rightIndex] = minOf(
-                dp[leftIndex - 1][rightIndex] + 1,
-                dp[leftIndex][rightIndex - 1] + 1,
-                dp[leftIndex - 1][rightIndex - 1] +
-                    (if (left[leftIndex - 1] == right[rightIndex - 1]) 0 else 1),
-            )
-        return dp[left.length][right.length]
-    }
-
     internal fun setApiBaseUrlForTesting(baseUrl: String) {
         apiBaseUrl = baseUrl.trimEnd('/')
         auth = null
@@ -273,12 +283,15 @@ object HltbService {
 }
 
 /** In-memory + DataStore cache for HLTB stats (12-hour TTL, max 200 entries). */
-object HltbCache {
-    private const val TTL = 12 * 3_600_000L
-    internal const val MAX_ENTRIES = 200
-
-    @Volatile
-    var preferences: GeneralPreferences? = null
+@Singleton
+class HltbCache @Inject constructor(
+    private val generalPreferences: GeneralPreferences,
+) {
+    companion object {
+        private const val TTL = 12 * 3_600_000L
+        internal const val MAX_ENTRIES = 200
+        internal fun key(name: String) = normalizedKey(name)
+    }
 
     private val mem = mutableMapOf<String, HltbService.Stats>()
     private val stamps = mutableMapOf<String, Long>()
@@ -288,11 +301,10 @@ object HltbCache {
     @Serializable data class Entry(val stats: HltbService.Stats, val ts: Long)
 
     @Synchronized
-    private fun load(prefs: GeneralPreferences? = preferences) {
+    private fun load() {
         if (loaded) return
         try {
-            val targetPrefs = prefs ?: preferences
-            val raw = targetPrefs?.hltbCache ?: "{}"
+            val raw = generalPreferences.hltbCache
             if (raw.isNotEmpty() && raw != "{}") {
                 val now = System.currentTimeMillis()
                 json.decodeFromString<Map<String, Entry>>(raw)
@@ -312,13 +324,12 @@ object HltbCache {
     }
 
     @Synchronized
-    private fun save(prefs: GeneralPreferences? = preferences) {
+    private fun save() {
         try {
             val now = System.currentTimeMillis()
-            val targetPrefs = prefs ?: preferences
-            targetPrefs?.let {
-                it.hltbCache = json.encodeToString(mem.mapValues { Entry(it.value, stamps[it.key] ?: now) })
-            }
+            generalPreferences.hltbCache = json.encodeToString(
+                mem.mapValues { Entry(it.value, stamps[it.key] ?: now) }
+            )
         } catch (_: Exception) {}
     }
 
@@ -343,8 +354,6 @@ object HltbCache {
         stamps[k] = System.currentTimeMillis()
         save()
     }
-
-    internal fun key(name: String) = normalizedKey(name)
 
     /** Reset state — for testing only. */
     @Synchronized

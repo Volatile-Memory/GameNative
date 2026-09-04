@@ -1,8 +1,9 @@
 package app.gamenative.utils
 
-import android.content.Context
 import android.graphics.BitmapFactory
+import app.gamenative.core.coroutines.IoDispatcher
 import app.gamenative.preferences.DownloadPreferences
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -15,21 +16,26 @@ import java.io.FileOutputStream
 import java.net.URLEncoder
 import java.util.Properties
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.abs
 
 /**
  * Utility class for fetching game images from SteamGridDB API.
  * Images are stored locally in the game folder to avoid repeated API calls.
  */
-object SteamGridDB {
-    private const val API_BASE_URL = "https://www.steamgriddb.com/api/v2"
-    private const val SEARCH_ENDPOINT = "/search/autocomplete"
-    private const val GRIDS_ENDPOINT = "/grids/game"
-    private const val HEROES_ENDPOINT = "/heroes/game"
-    private const val LOGOS_ENDPOINT = "/logos/game"
-
-    @Volatile
-    var preferences: DownloadPreferences? = null
+@Singleton
+class SteamGridDB @Inject constructor(
+    private val downloadPreferences: DownloadPreferences,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
+    companion object {
+        private const val API_BASE_URL = "https://www.steamgriddb.com/api/v2"
+        private const val SEARCH_ENDPOINT = "/search/autocomplete"
+        private const val GRIDS_ENDPOINT = "/grids/game"
+        private const val HEROES_ENDPOINT = "/heroes/game"
+        private const val LOGOS_ENDPOINT = "/logos/game"
+    }
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -55,14 +61,14 @@ object SteamGridDB {
      * Search for a game by name and return the first match.
      * Returns null if no match is found or if API key is missing.
      */
-    suspend fun searchGame(gameName: String, prefs: DownloadPreferences? = preferences): GameSearchResult? = withContext(Dispatchers.IO) {
+    suspend fun searchGame(gameName: String): GameSearchResult? = withContext(ioDispatcher) {
         val apiKey = getApiKey()
         if (apiKey == null) {
             Timber.tag("SteamGridDB").i("Skipping image fetch for '$gameName' - API key not configured")
             return@withContext null
         }
 
-        val fetchImagesEnabled = (prefs ?: preferences)?.fetchSteamGridDBImages ?: true
+        val fetchImagesEnabled = downloadPreferences.fetchSteamGridDBImages
         if (!fetchImagesEnabled) {
             Timber.tag("SteamGridDB").d("Image fetching is disabled in settings")
             return@withContext null
@@ -121,7 +127,7 @@ object SteamGridDB {
      * Check if an image is horizontal (width > height) or vertical (height > width)
      * Returns true if horizontal, false if vertical, null if cannot determine
      */
-    private suspend fun isImageHorizontal(imageBytes: ByteArray): Boolean? = withContext(Dispatchers.IO) {
+    private suspend fun isImageHorizontal(imageBytes: ByteArray): Boolean? = withContext(ioDispatcher) {
         try {
             val options = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true // Only decode bounds, not the full image
@@ -149,7 +155,7 @@ object SteamGridDB {
         imageUrl: String,
         gameFolder: File,
         fileName: String
-    ): Pair<String, Boolean?>? = withContext(Dispatchers.IO) {
+    ): Pair<String, Boolean?>? = withContext(ioDispatcher) {
         try {
             // Download the image
             val imageRequest = Request.Builder()
@@ -199,7 +205,7 @@ object SteamGridDB {
     private suspend fun fetchGrids(
         gameId: Int,
         gameFolder: File
-    ): Pair<String?, String?> = withContext(Dispatchers.IO) {
+    ): Pair<String?, String?> = withContext(ioDispatcher) {
         val apiKey = getApiKey() ?: return@withContext Pair(null, null)
 
         try {
@@ -323,7 +329,7 @@ object SteamGridDB {
         gameId: Int,
         gameFolder: File,
         imageType: String
-    ): String? = withContext(Dispatchers.IO) {
+    ): String? = withContext(ioDispatcher) {
         val apiKey = getApiKey() ?: return@withContext null
 
         try {
@@ -420,15 +426,14 @@ object SteamGridDB {
     suspend fun fetchGameImages(
         gameName: String,
         gameFolderPath: String,
-        prefs: DownloadPreferences? = preferences,
-    ): ImageFetchResult = withContext(Dispatchers.IO) {
+    ): ImageFetchResult = withContext(ioDispatcher) {
         val apiKey = getApiKey()
         if (apiKey == null) {
             Timber.tag("SteamGridDB").i("Skipping image fetch for '$gameName' - API key not configured")
             return@withContext ImageFetchResult(null, null, null, null, null)
         }
 
-        val fetchImagesEnabled = (prefs ?: preferences)?.fetchSteamGridDBImages ?: true
+        val fetchImagesEnabled = downloadPreferences.fetchSteamGridDBImages
         if (!fetchImagesEnabled) {
             Timber.tag("SteamGridDB").d("Image fetching is disabled in settings")
             return@withContext ImageFetchResult(null, null, null, null, null)

@@ -3,6 +3,7 @@ package app.gamenative.utils
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import app.gamenative.di.appUtilsEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -12,7 +13,7 @@ import kotlin.coroutines.coroutineContext
 
 /**
  * Imports a user-picked folder (a SAF tree URI from OpenDocumentTree) into
- * [CustomGameScanner.importRootPath], needing only the picker grant. The bytes must pass
+ * customGameScanner.importRootPath, needing only the picker grant. The bytes must pass
  * through this app for wine to be able to read them under scoped storage, so a "move" is
  * per-file copy + verify + delete-source rather than a rename.
  */
@@ -36,7 +37,7 @@ object CustomGameImporter {
                 return@withContext Result.failure(IllegalArgumentException("Selected item is not a folder"))
             }
 
-            val importRoot = CustomGameScanner.importRootPath
+            val importRoot = context.appUtilsEntryPoint().customGameScanner().importRootPath
             val name = sanitizeName(src.name)
             var dest = File(importRoot, name)
             var suffix = 1

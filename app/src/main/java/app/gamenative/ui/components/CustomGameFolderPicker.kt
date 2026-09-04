@@ -13,7 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import app.gamenative.R
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.di.appUtilsEntryPoint
 
 /**
  * Resolves the filesystem root of a storage volume identified by the volume id
@@ -131,7 +131,7 @@ fun requestPermissionsForPath(
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        CustomGameScanner.requestManageExternalStoragePermission(context)
+        context.appUtilsEntryPoint().customGameScanner().requestManageExternalStoragePermission(context)
     } else {
         val permissions = arrayOf(
             Manifest.permission.READ_EXTERNAL_STORAGE,

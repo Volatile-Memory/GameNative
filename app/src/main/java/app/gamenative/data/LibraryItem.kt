@@ -1,7 +1,8 @@
 package app.gamenative.data
 
 import app.gamenative.Constants
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.PluviaApp
+import app.gamenative.di.appUtilsEntryPoint
 
 enum class GameSource {
     STEAM,
@@ -58,7 +59,9 @@ data class LibraryItem(
             }
             GameSource.CUSTOM_GAME -> {
                 // Attempt to resolve a local icon from the selected/unique exe folder
-                val localPath = CustomGameScanner.findIconFileForCustomGame(appId)
+                val localPath = runCatching {
+                    PluviaApp.instance?.appUtilsEntryPoint()?.customGameScanner()?.findIconFileForCustomGame(appId)
+                }.getOrNull()
                 if (!localPath.isNullOrEmpty()) {
                     if (localPath.startsWith("file://")) localPath else "file://$localPath"
                 } else {

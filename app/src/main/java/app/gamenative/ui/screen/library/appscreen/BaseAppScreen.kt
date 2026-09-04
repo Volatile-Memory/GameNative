@@ -27,10 +27,10 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import app.gamenative.PluviaApp
 import app.gamenative.R
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.api.isValidCommunityConfig
 import app.gamenative.api.prepareCommunityConfigForApply
 import app.gamenative.data.GameSource
-import app.gamenative.data.FavoritesManager
 import app.gamenative.data.LibraryItem
 import app.gamenative.events.AndroidEvent
 import app.gamenative.mods.ModContainerResolver
@@ -301,7 +301,7 @@ abstract class BaseAppScreen {
                 return@LaunchedEffect
             }
             try {
-                val cachedResponse = GameCompatibilityCache.getCached(gameName)
+                val cachedResponse = context.appUtilsEntryPoint().gameCompatibilityCache().getCached(gameName)
                 if (cachedResponse != null) {
                     val message = GameCompatibilityService.getCompatibilityMessageFromResponse(context, cachedResponse)
                     compatibilityMessage = message.text
@@ -765,7 +765,8 @@ abstract class BaseAppScreen {
     @Composable
     private fun getFavoriteOption(libraryItem: LibraryItem): AppMenuOption {
         val context = LocalContext.current
-        val favorites by FavoritesManager.favorites.collectAsStateWithLifecycle()
+        val favoritesManager = remember(context) { context.appUtilsEntryPoint().favoritesManager() }
+        val favorites by favoritesManager.favorites.collectAsStateWithLifecycle()
         val isFavorite = favorites.contains(libraryItem.appId)
         return AppMenuOption(
             optionType = if (isFavorite) {
@@ -1191,7 +1192,7 @@ abstract class BaseAppScreen {
         LaunchedEffect(displayInfoBase.name) {
             if (displayInfoBase.name.isNotBlank())
                 hltbStats = try {
-                    app.gamenative.utils.HltbService.getStats(displayInfoBase.name)
+                    context.appUtilsEntryPoint().hltbService().getStats(displayInfoBase.name)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: Exception) { null }

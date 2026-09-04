@@ -20,9 +20,10 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.gamenative.data.FavoritesManager
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.ui.theme.PluviaWarning
 
 internal class FavoriteCardIndicator(
@@ -35,8 +36,10 @@ internal fun rememberFavoriteCardIndicator(
     appId: String,
     isRecommended: Boolean,
 ): FavoriteCardIndicator {
-    val favorites by FavoritesManager.favorites.collectAsStateWithLifecycle()
-    val favoritesLoaded by FavoritesManager.loaded.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val favoritesManager = remember(context) { context.appUtilsEntryPoint().favoritesManager() }
+    val favorites by favoritesManager.favorites.collectAsStateWithLifecycle()
+    val favoritesLoaded by favoritesManager.loaded.collectAsStateWithLifecycle()
     val isFavorite = !isRecommended && appId in favorites
     val glowAlpha = remember { Animatable(1f) }
     var wasReady by remember { mutableStateOf(false) }

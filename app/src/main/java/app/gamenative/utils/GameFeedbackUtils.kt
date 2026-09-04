@@ -6,6 +6,7 @@ import app.gamenative.BuildConfig
 import app.gamenative.api.ApiResult
 import app.gamenative.api.GameRunApi
 import app.gamenative.data.GameSource
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.service.SteamService
 import app.gamenative.service.amazon.AmazonService
 import app.gamenative.service.epic.EpicService
@@ -37,9 +38,10 @@ object GameFeedbackUtils {
             // Get the game name from container or use a fallback
             val gameName = when (gameSource) {
                 GameSource.CUSTOM_GAME -> {
-                    val folderPath = CustomGameScanner.findCustomGameById(gameId) ?: ""
+                    val scanner = context.appUtilsEntryPoint().customGameScanner()
+                    val folderPath = scanner.findCustomGameById(gameId) ?: ""
                     if (folderPath.isNotEmpty()) {
-                        val game = CustomGameScanner.createLibraryItemFromFolder(folderPath)
+                        val game = scanner.createLibraryItemFromFolder(folderPath)
                         game?.name ?: ""
                     } else {
                         ""

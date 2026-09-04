@@ -9,7 +9,7 @@ import app.gamenative.service.amazon.AmazonService
 import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGService
 import app.gamenative.utils.ContainerUtils
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.utils.FileUtils
 import com.winlator.xenvironment.ImageFs
 import com.winlator.xenvironment.components.GuestProgramLauncherComponent
@@ -38,7 +38,7 @@ object XAudioUtils {
                     EpicService.getInstallPath(gameId)
                 }
                 GameSource.AMAZON -> AmazonService.getInstallPath(appId)
-                GameSource.CUSTOM_GAME -> CustomGameScanner.getFolderPathFromAppId(appId)
+                GameSource.CUSTOM_GAME -> context.appUtilsEntryPoint().customGameScanner().getFolderPathFromAppId(appId)
             }
         } catch (e: Exception) {
             Timber.tag("XAudioUtils")

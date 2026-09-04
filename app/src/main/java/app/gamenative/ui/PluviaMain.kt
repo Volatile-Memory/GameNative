@@ -98,7 +98,7 @@ import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.BestConfigService
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.PlatformAuthUtils
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.utils.ManifestInstaller
 import app.gamenative.utils.GameFeedbackUtils
 import app.gamenative.utils.IntentLaunchManager
@@ -198,7 +198,7 @@ private fun resolveGameAppId(context: Context, appId: String): GameResolutionRes
         }
 
         GameSource.CUSTOM_GAME -> {
-            CustomGameScanner.isGameInstalled(gameId)
+            context.appUtilsEntryPoint().customGameScanner().isGameInstalled(gameId)
         }
     }
 
@@ -1711,7 +1711,7 @@ fun preLaunchApp(
                 GameSource.STEAM -> SteamService.getLaunchExecutable(appId, container)
                 GameSource.GOG -> GOGService.getLaunchExecutable(appId, container)
                 GameSource.EPIC -> EpicService.getLaunchExecutable(appId)
-                GameSource.CUSTOM_GAME -> CustomGameScanner.getLaunchExecutable(container)
+                GameSource.CUSTOM_GAME -> context.appUtilsEntryPoint().customGameScanner().getLaunchExecutable(container)
                 GameSource.AMAZON -> AmazonService.getLaunchExecutable(appId)
             }
             if (effectiveExe.isBlank()) {

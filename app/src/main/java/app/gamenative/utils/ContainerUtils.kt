@@ -3,6 +3,8 @@ package app.gamenative.utils
 import android.content.Context
 import android.os.Build
 import app.gamenative.BuildConfig
+import app.gamenative.PluviaApp
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.preferences.AuthPreferences
 import app.gamenative.preferences.ContainerPreferences
 import app.gamenative.preferences.InputPreferences
@@ -716,7 +718,7 @@ object ContainerUtils {
 
             GameSource.CUSTOM_GAME -> {
                 // For Custom Games, find the game folder and map it to A: drive
-                val gameFolderPath = CustomGameScanner.getFolderPathFromAppId(appId)
+                val gameFolderPath = context.appUtilsEntryPoint().customGameScanner().getFolderPathFromAppId(appId)
                 if (gameFolderPath != null) {
                     // Check if A: is already in defaultDrives, if not use it, otherwise use next available
                     val drive: Char = if (defaultDrives.contains("A:")) {
@@ -841,9 +843,10 @@ object ContainerUtils {
         // For Custom Games, pre-populate executablePath if there's exactly one valid .exe
         if (gameSource == GameSource.CUSTOM_GAME) {
             try {
-                val gameFolderPath = CustomGameScanner.getFolderPathFromAppId(appId)
+                val scanner = context.appUtilsEntryPoint().customGameScanner()
+                val gameFolderPath = scanner.getFolderPathFromAppId(appId)
                 if (!gameFolderPath.isNullOrEmpty() && container.executablePath.isEmpty()) {
-                    val auto = CustomGameScanner.findUniqueExeRelativeToFolder(gameFolderPath)
+                    val auto = scanner.findUniqueExeRelativeToFolder(gameFolderPath)
                     if (auto != null) {
                         Timber.i("Auto-selected Custom Game exe during container creation: $auto")
                         container.executablePath = auto
@@ -1073,7 +1076,7 @@ object ContainerUtils {
             }
 
             GameSource.CUSTOM_GAME -> {
-                CustomGameScanner.getFolderPathFromAppId(appId)
+                context.appUtilsEntryPoint().customGameScanner().getFolderPathFromAppId(appId)
             }
 
             GameSource.AMAZON -> {
@@ -1287,7 +1290,8 @@ object ContainerUtils {
             GameSource.AMAZON -> AmazonService.getAmazonGameByAppId(gameId)?.title
             GameSource.CUSTOM_GAME -> {
                 val customAppId = "${GameSource.CUSTOM_GAME.name}_$gameId"
-                CustomGameScanner.getFolderPathFromAppId(customAppId)
+                PluviaApp.instance?.appUtilsEntryPoint()?.customGameScanner()
+                    ?.getFolderPathFromAppId(customAppId)
                     ?.let { File(it).name }
             }
         } ?: "Unknown"

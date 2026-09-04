@@ -193,7 +193,7 @@ import app.gamenative.statsgen.StatType
 import app.gamenative.statsgen.StatsAchievementsGenerator
 import app.gamenative.statsgen.VdfParser
 import app.gamenative.utils.DownloadSpeedConfig
-import app.gamenative.utils.CustomGameScanner
+import app.gamenative.utils.CustomGameCache
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -1437,7 +1437,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val manualFolders = instance?.libraryPreferences?.customGameManualFolders?.toMutableSet() ?: mutableSetOf()
                 manualFolders.remove(folderPath)
                 instance?.libraryPreferences?.customGameManualFolders = manualFolders
-                CustomGameScanner.invalidateCache()
+                CustomGameCache.invalidate()
 
                 MarkerUtils.removeMarker(folderPath, Marker.DOWNLOAD_COMPLETE_MARKER)
 

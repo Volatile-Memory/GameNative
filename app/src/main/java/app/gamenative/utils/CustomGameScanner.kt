@@ -9,6 +9,7 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import app.gamenative.PluviaApp
+import app.gamenative.core.storage.AppStoragePaths
 import app.gamenative.data.AppInfo
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
@@ -23,7 +24,10 @@ import app.gamenative.service.SteamService.Companion.INVALID_APP_ID
 import app.gamenative.service.SteamService.Companion.getMainAppDepots
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -33,16 +37,14 @@ import kotlin.collections.component1
 import kotlin.collections.component2
 import kotlin.text.ifEmpty
 
-object CustomGameScanner {
-
-    @Volatile
-    var downloadPreferences: DownloadPreferences? = null
-
-    @Volatile
-    var libraryPreferences: LibraryPreferences? = null
-
-    @Volatile
-    var containerPreferences: ContainerPreferences? = null
+@Singleton
+class CustomGameScanner @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val appStoragePaths: AppStoragePaths,
+    private val downloadPreferences: DownloadPreferences,
+    private val libraryPreferences: LibraryPreferences,
+    private val containerPreferences: ContainerPreferences,
+) {
 
     // Default root path for Custom Games. Always use the app's external storage sandbox
     // (Android/data/<package>/CustomGames) when available; fall back to internal only if external is unavailable.
@@ -68,8 +70,8 @@ object CustomGameScanner {
      */
     val importRootPath: String
         get() {
-            val external = downloadPreferences?.externalStoragePath ?: ""
-            if (downloadPreferences?.useExternalStorage == true && external.isNotBlank() && File(external).isDirectory) {
+            val external = downloadPreferences.externalStoragePath
+            if (downloadPreferences.useExternalStorage && external.isNotBlank() && File(external).isDirectory) {
                 val dir = File(external, "CustomGames")
                 if (StorageUtils.ensureInstallRoot(dir)) return dir.absolutePath
             }
@@ -96,7 +98,7 @@ object CustomGameScanner {
                 StorageUtils.publicInstallRoot(File(appDir))?.let { roots.add(File(it, "CustomGames").absolutePath) }
                 roots.add(File(appDir, "CustomGames").absolutePath)
             }
-            val external = downloadPreferences?.externalStoragePath ?: ""
+            val external = downloadPreferences.externalStoragePath
             if (external.isNotBlank()) {
                 roots.add(File(external, "CustomGames").absolutePath)
             }
@@ -166,48 +168,6 @@ object CustomGameScanner {
             return steamGridLogo.absolutePath
         }
 
-        // 2) If we can uniquely identify an exe, try extracting embedded icon(s)
-        val uniqueExeRel = findUniqueExeRelativeToFolder(folder)
-        if (!uniqueExeRel.isNullOrEmpty()) {
-            val exeFile = File(folder, uniqueExeRel.replace('/', File.separatorChar))
-            if (exeFile.exists()) {
-                val outIco = File(exeFile.parentFile, exeFile.nameWithoutExtension + ".extracted.ico")
-                // Use cache if up to date, else (re)extract
-                val useCached = outIco.exists() && outIco.lastModified() >= exeFile.lastModified()
-                if (useCached) return outIco.absolutePath
-                try {
-                    if (ExeIconExtractor.tryExtractMainIcon(exeFile, outIco)) {
-                        return outIco.absolutePath
-                    }
-                } catch (e: Exception) {
-                    // swallow and fall back
-                }
-            }
-        }
-
-        // Fallback to nearby images if extraction was not possible
-        return findNearbyImageIcon(folder, uniqueExeRel)
-    }
-
-    // New: Context-aware variant that prefers the selected container executable's icon
-    fun findIconFileForCustomGame(context: Context, appId: String): String? {
-        val folderPath = getFolderPathFromAppId(appId) ?: return null
-        val folder = File(folderPath)
-        if (!folder.exists() || !folder.isDirectory) return null
-
-        val steamGridLogo = folder.listFiles { file ->
-            file.isFile && file.name.startsWith("steamgriddb_logo", ignoreCase = true) &&
-                (
-                    file.name.endsWith(".png", ignoreCase = true) ||
-                        file.name.endsWith(".jpg", ignoreCase = true) ||
-                        file.name.endsWith(".webp", ignoreCase = true)
-                    )
-        }?.firstOrNull()
-        if (steamGridLogo != null) {
-            Timber.tag("CustomGameScanner").d("Found SteamGridDB logo: ${steamGridLogo.absolutePath}")
-            return steamGridLogo.absolutePath
-        }
-
         // 2) Try extracting from the selected container executable
         try {
             val cm = ContainerManager(context)
@@ -237,29 +197,35 @@ object CustomGameScanner {
                 } else {
                     Timber.tag("CustomGameScanner").d("Container executable path is empty")
                 }
-            } else {
-                Timber.tag("CustomGameScanner").d("No container found for $appId")
             }
         } catch (e: Exception) {
             Timber.tag("CustomGameScanner").d(e, "Error checking container for $appId")
         }
 
         // 3) If selected exe path failed or absent, try unique exe extraction
-        val fromUnique = findIconFileForCustomGame(appId)
-        if (!fromUnique.isNullOrEmpty()) {
-            Timber.tag("CustomGameScanner").d("Found icon from unique executable: $fromUnique")
-            return fromUnique
+        val uniqueExeRel = findUniqueExeRelativeToFolder(folder)
+        if (!uniqueExeRel.isNullOrEmpty()) {
+            val exeFile = File(folder, uniqueExeRel.replace('/', File.separatorChar))
+            if (exeFile.exists()) {
+                val outIco = File(exeFile.parentFile, exeFile.nameWithoutExtension + ".extracted.ico")
+                val useCached = outIco.exists() && outIco.lastModified() >= exeFile.lastModified()
+                if (useCached) return outIco.absolutePath
+                try {
+                    if (ExeIconExtractor.tryExtractMainIcon(exeFile, outIco)) {
+                        return outIco.absolutePath
+                    }
+                } catch (e: Exception) {
+                    // swallow and fall back
+                }
+            }
         }
 
-        // 4) As last resort, image heuristic
-        val fromHeuristic = findNearbyImageIcon(folder, null)
-        if (fromHeuristic != null) {
-            Timber.tag("CustomGameScanner").d("Found icon from heuristic: $fromHeuristic")
-        } else {
-            Timber.tag("CustomGameScanner").d("No icon found for $appId")
-        }
-        return fromHeuristic
+        // Fallback to nearby images if extraction was not possible
+        return findNearbyImageIcon(folder, uniqueExeRel)
     }
+
+    fun findIconFileForCustomGame(context: Context, appId: String): String? =
+        findIconFileForCustomGame(appId)
 
     /**
      * Finds a user-supplied cover image for a Custom Game's CAPSULE (vertical box-art) view.
@@ -486,7 +452,7 @@ object CustomGameScanner {
      * On Android 11+ (API 30+), this checks for MANAGE_EXTERNAL_STORAGE permission.
      * On older versions, checks for READ_EXTERNAL_STORAGE.
      */
-    fun hasStoragePermission(context: Context, path: String): Boolean {
+    fun hasStoragePermission(path: String): Boolean {
         // Check if path is outside app sandbox
         val isOutsideSandbox = !path.contains("/Android/data/${context.packageName}") &&
             !path.contains(context.dataDir.path)
@@ -509,25 +475,36 @@ object CustomGameScanner {
         }
     }
 
+    fun hasStoragePermission(context: Context, path: String): Boolean = hasStoragePermission(path)
+
     /**
      * Opens the Android settings page to grant MANAGE_EXTERNAL_STORAGE permission.
      * This is required for Android 11+ to access paths outside the app sandbox.
      * Returns true if the intent was launched, false otherwise.
      */
-    fun requestManageExternalStoragePermission(context: Context): Boolean {
+    fun requestManageExternalStoragePermission(activityContext: Context? = null): Boolean {
+        val targetContext = activityContext ?: context
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                intent.data = Uri.parse("package:${context.packageName}")
-                context.startActivity(intent)
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${targetContext.packageName}")
+                    if (targetContext !is android.app.Activity) {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                }
+                targetContext.startActivity(intent)
                 return true
             } catch (e: Exception) {
                 Timber.tag("CustomGameScanner").e(e, "Failed to open settings for MANAGE_EXTERNAL_STORAGE")
                 // Fallback: try generic app settings
                 try {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    intent.data = Uri.parse("package:${context.packageName}")
-                    context.startActivity(intent)
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${targetContext.packageName}")
+                        if (targetContext !is android.app.Activity) {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    }
+                    targetContext.startActivity(intent)
                     return true
                 } catch (e2: Exception) {
                     Timber.tag("CustomGameScanner").e(e2, "Failed to open app settings")
@@ -578,7 +555,7 @@ object CustomGameScanner {
     /** Manually added folders plus every immediate subfolder of the scan roots. */
     private fun candidateFolders(): Set<String> {
         val folders = LinkedHashSet<String>()
-        folders.addAll(libraryPreferences?.customGameManualFolders ?: emptySet())
+        folders.addAll(libraryPreferences.customGameManualFolders)
         for (root in scanRootPaths) {
             File(root).listFiles { f -> f.isDirectory }?.forEach { folders.add(it.absolutePath) }
         }
@@ -621,13 +598,13 @@ object CustomGameScanner {
             return null
         }
 
-        if (SteamService.instance != null && (libraryPreferences?.importCustomGameAsSteamGame ?: false)) {
+        if (SteamService.instance != null && libraryPreferences.importCustomGameAsSteamGame) {
             val steamApps = SteamService.findSteamAppWithInstallDir(dirName = folder.name)
             if (steamApps?.size == 1) {
                 val steamApp = steamApps[0]
                 if (SteamService.isAppLicensed(steamApp.packageId)) {
                     if (SteamService.getInstalledApp(steamApp.id) == null) {
-                        val preferredLanguage = containerPreferences?.containerLanguage ?: "english"
+                        val preferredLanguage = containerPreferences.containerLanguage
                         val mainDepots = getMainAppDepots(steamApp.id, preferredLanguage)
                         val mainAppDepots = mainDepots.filter { (_, depot) ->
                             depot.dlcAppId == INVALID_APP_ID

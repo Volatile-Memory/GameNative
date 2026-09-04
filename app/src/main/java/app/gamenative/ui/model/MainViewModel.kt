@@ -63,6 +63,7 @@ class MainViewModel @Inject constructor(
     private val appTheme: IAppTheme,
     private val libraryPlayHistoryDao: LibraryPlayHistoryDao,
     private val generalPreferences: GeneralPreferences,
+    private val customGameScanner: CustomGameScanner,
 ) : ViewModel() {
 
     companion object {
@@ -539,7 +540,7 @@ class MainViewModel @Inject constructor(
                         game?.heroUrl?.ifEmpty { game.artUrl } ?: ""
                     }
                     GameSource.CUSTOM_GAME -> {
-                        val folderPath = CustomGameScanner.getFolderPathFromAppId(appId) ?: return@withContext ""
+                        val folderPath = customGameScanner.getFolderPathFromAppId(appId) ?: return@withContext ""
                         val folder = java.io.File(folderPath)
                         val heroFile = folder.listFiles()?.firstOrNull { file ->
                             file.isFile &&

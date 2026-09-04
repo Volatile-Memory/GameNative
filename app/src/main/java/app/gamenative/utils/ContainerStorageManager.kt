@@ -4,6 +4,7 @@ import android.content.Context
 import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.data.GameSource
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.preferences.DownloadPreferences
 import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.data.LibraryItem
@@ -557,9 +558,10 @@ object ContainerStorageManager {
         }
 
         runCatching {
-            CustomGameScanner.scanAsLibraryItems(query = "")
+            val scanner = context.appUtilsEntryPoint().customGameScanner()
+            scanner.scanAsLibraryItems(query = "")
                 .mapNotNull { item ->
-                    val folderPath = CustomGameScanner.getFolderPathFromAppId(item.appId) ?: return@mapNotNull null
+                    val folderPath = scanner.getFolderPathFromAppId(item.appId) ?: return@mapNotNull null
                     val folder = File(folderPath)
                     if (!folder.exists() || !folder.isDirectory) return@mapNotNull null
                     InstalledGame(
@@ -985,7 +987,7 @@ object ContainerStorageManager {
             }
 
             GameSource.CUSTOM_GAME -> {
-                val folderPath = CustomGameScanner.getFolderPathFromAppId(normalizedContainerId)
+                val folderPath = context.appUtilsEntryPoint().customGameScanner().getFolderPathFromAppId(normalizedContainerId)
                 ResolvedGame(
                     name = folderPath?.let { File(it).name },
                     installPath = folderPath,
