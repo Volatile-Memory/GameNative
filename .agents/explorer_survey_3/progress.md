@@ -1,9 +1,9 @@
-# Progress — Explorer 3 (DI Architecture & Build Verifier)
+# Progress — Explorer Survey 3 (Group 5, Group 6, DI & Unit Tests)
 
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Investigated DI architecture & existing Hilt modules
-- [x] Investigated EntryPoint patterns for non-Hilt classes & Java components
-- [x] Investigated Gradle build configuration & test verification suite
-- [x] Compiled findings & written handoff.md
+- [x] Investigated Group 5 (BestConfigService, WorkshopManager)
+- [x] Investigated Group 6 (PluviaApp.companion, xEnvironment, UI views, GameSessionScoped)
+- [x] Investigated DI Infrastructure & Utilities (SystemServicesModule, AppStoragePaths, StringResolver, PreferencesModule, etc.)
+- [x] Investigated Existing Unit Tests (BestConfigServiceTest, WorkshopManagerTest, GameSessionManagerTest)
+- [x] Compiled comprehensive survey_report.md and handoff.md
 
-Last visited: 2026-08-31T10:45:30Z
+Last visited: 2026-09-02T01:50:00Z

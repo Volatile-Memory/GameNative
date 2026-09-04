@@ -1,38 +1,40 @@
-# BRIEFING — 2026-08-31T10:45:00Z
+# BRIEFING — 2026-09-02T01:50:00Z
 
 ## Mission
-Investigate Dagger Hilt DI architecture, build configuration, entry points for non-Hilt classes, and baseline build/test commands for the GameNative PrefManager refactoring project.
+Thoroughly investigate and map Group 5 (BestConfigService, WorkshopManager), Group 6 (PluviaApp.companion, xEnvironment, UI views, GameSessionScoped lifecycle component), DI Infrastructure & Utilities (SystemServicesModule, AppStoragePaths, StringResolver, PreferencesModule, @PluviaDataStore), and Existing Unit Tests.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: DI Architecture & Build Verifier
+- Roles: Advanced Subsystems, PluviaApp, DI Infrastructure & Unit Tests Explorer
 - Working directory: C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\explorer_survey_3
-- Original parent: 39631fec-37ca-4d7d-9fe3-fdb7c715ad76
-- Milestone: Survey & Architecture Discovery
+- Original parent: 017210ce-a45a-4a23-a21c-5ea8382d0cae
+- Milestone: Mid-Level Singletons Refactoring Survey Phase
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement changes to source code.
-- Gradle build cache efficiency: do not use `--no-build-cache` unless strictly required.
-- GRADLE_USER_HOME on D:\ if configured.
+- Write findings to survey_report.md and handoff.md in .agents/explorer_survey_3/.
+- Send completion message to parent (017210ce-a45a-4a23-a21c-5ea8382d0cae).
 
 ## Current Parent
-- Conversation ID: 39631fec-37ca-4d7d-9fe3-fdb7c715ad76
-- Updated: 2026-08-31T10:45:00Z
+- Conversation ID: 017210ce-a45a-4a23-a21c-5ea8382d0cae
+- Updated: 2026-09-02T01:50:00Z
 
 ## Investigation State
-- **Explored paths**: `app/src/main/java/app/gamenative/di/`, `core/`, `service/`, `ui/`, `data/`, `mods/`, `utils/`, `com/winlator/`, `app/src/test/`, `gradle/libs.versions.toml`, `build.gradle.kts`, `app/build.gradle.kts`.
+- **Explored paths**: `app/src/main/java/app/gamenative/utils/BestConfigService.kt`, `app/src/main/java/app/gamenative/workshop/WorkshopManager.kt`, `app/src/main/java/app/gamenative/PluviaApp.kt`, `app/src/main/java/app/gamenative/core/runtime/`, `app/src/main/java/app/gamenative/core/system/`, `app/src/main/java/app/gamenative/core/storage/`, `app/src/main/java/app/gamenative/core/appinfo/`, `app/src/main/java/app/gamenative/di/`, `app/src/test/java/app/gamenative/utils/BestConfigServiceTest.kt`, `app/src/test/java/app/gamenative/workshop/WorkshopManagerTest.kt`, `app/src/test/java/app/gamenative/core/runtime/GameSessionManagerTest.kt`.
 - **Key findings**:
-  - Hilt is fully configured with `SingletonComponent` and custom `GameSessionComponent`.
-  - Monolithic `PrefManager.kt` contains 1509 lines, 60+ keys backing `"PluviaPreferences"`.
-  - Non-Hilt classes (e.g., `ContainerStorageManager`, `NexusModManager`, `WineUtils.java`, `BionicProgramLauncherComponent.java`, `attachBaseContext`) use `EntryPointAccessors.fromApplication(...)` with `@EntryPoint`.
-  - Proposed 11 logical domain preference repositories and a unified `PreferencesEntryPoint`.
-- **Unexplored areas**: None. Investigation complete.
+  - `BestConfigService` and `WorkshopManager` mapped with all escape hatches, Hilt dependencies, call sites, and proposed `@Singleton class` signatures.
+  - `PluviaApp.companion` members mapped; game session runtime state separated from global singletons (`EventDispatcher`, `ScreenSizeResolver`, `AppLifecycleState`).
+  - DI infrastructure verified and helper bindings identified.
+  - All existing unit tests cataloged and migration paths defined.
+- **Unexplored areas**: None. Complete.
 
 ## Key Decisions Made
-- Auth, Container, Performance, Theme, Download, Steam, GOG, Epic, Amazon, UI, and Analytics should each be separated into dedicated preference repository interfaces.
-- Zero data loss guaranteed by binding them to the same `"PluviaPreferences"` DataStore keys.
+- Scoped session runtime state to `@GameSessionScoped class GameSessionRuntime` within `GameSessionComponent`.
+- Provided `EventDispatcher` as `@Singleton` in Hilt `SingletonComponent`.
 
 ## Artifact Index
-- handoff.md — Complete 5-component survey and DI architectural blueprint
+- survey_report.md (`brain/8674d8dc-f545-44e0-9158-c9a48781b3e1/survey_report.md`) — Comprehensive survey report
+- handoff.md (`.agents/explorer_survey_3/handoff.md`) — Complete 5-component handoff report
 - progress.md — Task completion record
-- DISPATCH.md — Initial dispatch log
+- DISPATCH.md — Dispatch log
+

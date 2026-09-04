@@ -1,37 +1,52 @@
-# BRIEFING — 2026-08-31T15:42:00+05:00
+# BRIEFING — 2026-09-02T01:46:00Z
 
 ## Mission
-Investigate PrefManager.kt, PluviaPreferences.kt, and preferences/DataStore infrastructure to produce a domain decomposition, property inventory, repository interface design, and migration strategy.
+Survey Mid-Level Singletons (Group 1: HltbService, HltbCache, SteamGridDB; Group 2: DeviceGameStatsCache, GpuGameStatsCache, GameCompatibilityCache) for Hilt dependency injection refactoring.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: domain investigator, preference architecture analyst
+- Roles: investigation, synthesis, architecture mapping
 - Working directory: C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\explorer_survey_1
-- Original parent: 39631fec-37ca-4d7d-9fe3-fdb7c715ad76
-- Milestone: Explorer Survey 1 - PrefManager & Preferences
+- Original parent: 017210ce-a45a-4a23-a21c-5ea8382d0cae
+- Milestone: Mid-Level Singletons Refactoring Survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement production changes
-- Output structured 5-component handoff report to handoff.md
-- Ensure zero data loss for existing DataStore keys
-- Identify sync vs async access patterns and clean repository interfaces
+- Read-only investigation — do NOT modify any source code files
+- Full thoroughness on all 6 target classes: state, escape hatches, dependencies, callers, proposed constructors and migration plan
+- Output comprehensive findings in survey_report.md and handoff.md
 
 ## Current Parent
-- Conversation ID: 39631fec-37ca-4d7d-9fe3-fdb7c715ad76
-- Updated: 2026-08-31T15:42:00+05:00
+- Conversation ID: 017210ce-a45a-4a23-a21c-5ea8382d0cae
+- Updated: 2026-09-02T01:46:00Z
 
 ## Investigation State
-- **Explored paths**: `app.gamenative.PrefManager.kt`, `com.winlator.PrefManager.kt`, `di/`, `ui/`, `service/`, `data/`, `powercontrol/`, `utils/`
-- **Key findings**: Identified 95 preference properties, mapped to 7 domain repository interfaces (`AuthPreferences`, `ContainerPreferences`, `InputPreferences`, `HudPreferences`, `LibraryPreferences`, `DownloadPreferences`, `GeneralPreferences`), identified key casing/space quirks, verified zero data loss mapping.
-- **Unexplored areas**: None.
+- **Explored paths**:
+  - `app/src/main/java/app/gamenative/utils/HltbService.kt` (contains `HltbService` and `HltbCache`)
+  - `app/src/main/java/app/gamenative/utils/SteamGridDB.kt`
+  - `app/src/main/java/app/gamenative/utils/DeviceGameStatsCache.kt`
+  - `app/src/main/java/app/gamenative/utils/GpuGameStatsCache.kt`
+  - `app/src/main/java/app/gamenative/utils/GameCompatibilityCache.kt`
+  - `app/src/main/java/app/gamenative/ui/model/LibraryViewModel.kt`
+  - `app/src/main/java/app/gamenative/ui/model/GogRecommendationsViewModel.kt`
+  - `app/src/main/java/app/gamenative/ui/screen/library/appscreen/BaseAppScreen.kt`
+  - `app/src/main/java/app/gamenative/ui/screen/library/appscreen/CustomGameAppScreen.kt`
+  - `app/src/main/java/app/gamenative/ui/screen/library/LibraryAppScreen.kt`
+  - `app/src/test/java/app/gamenative/utils/HltbCacheTest.kt`
+  - `app/src/test/java/app/gamenative/utils/HltbServiceIntegrationTest.kt`
+  - `app/src/test/java/app/gamenative/utils/HltbServiceTest.kt`
+- **Key findings**:
+  - All 6 classes are Kotlin `object` singletons holding mutable state in static memory and transient `@Volatile var preferences: DomainPreferences? = null` fields.
+  - Converting to `@Singleton class` with constructor injection cleanly removes all 5 static preference variables.
+  - ViewModels (`LibraryViewModel`, `GogRecommendationsViewModel`) can inject all caches via constructor.
+  - UI Composables (`BaseAppScreen`, `CustomGameAppScreen`) can access utilities cleanly via `AppUtilsEntryPoint`.
+  - Unit tests will instantiate classes directly with mocked dependencies without global resets.
+- **Unexplored areas**: None. Group 1 & 2 survey complete.
 
 ## Key Decisions Made
-- Decomposed monolithic `PrefManager` into 7 cohesive domain repositories.
-- Preserved exact legacy DataStore keys and storage types to prevent data corruption.
-- Designed dual-access repository pattern (properties + Flows) to support phased, concurrent migration across teams.
+- Mapped all 6 target classes, constructors, caller migration plans, and test updates into `survey_report.md`.
 
 ## Artifact Index
-- DISPATCH.md — Initial task dispatch
-- BRIEFING.md — Persistent working memory
-- progress.md — Heartbeat and status
-- handoff.md — Final comprehensive report
+- DISPATCH.md — incoming dispatch instructions
+- BRIEFING.md — working memory and identity
+- survey_report.md — comprehensive survey report
+- handoff.md — 5-component handoff report

@@ -1,33 +1,33 @@
-# BRIEFING — 2026-08-31T10:30:00Z
+# BRIEFING — 2026-09-02T01:27:30+05:00
 
 ## Mission
-Perform a comprehensive scan across the entire project for all occurrences and usages of PrefManager and map every call site by architectural layer, module, and preference domain.
+Survey Mid-Level Singletons: Group 3 (FavoritesManager, FrontendSyncManager, CustomGameScanner) and Group 4 (Storefront Services: SteamService, EpicService, GOGService, AmazonService) for Hilt refactoring.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Codebase Call-Site Mapper
+- Archetype: explorer
+- Roles: investigator, reporter
 - Working directory: C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\explorer_survey_2
-- Original parent: 39631fec-37ca-4d7d-9fe3-fdb7c715ad76
-- Milestone: Survey & Call-site Mapping
+- Original parent: 017210ce-a45a-4a23-a21c-5ea8382d0cae
+- Milestone: Mid-Level Singletons Refactoring Survey (Group 3 & Group 4)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement source code changes
-- Provide comprehensive, exact file paths, line numbers, and domains
-- Self-contained handoff.md with 5 components
+- Read-only investigation — do NOT implement or modify project source code files
+- Survey Group 3: User Library Managers (FavoritesManager, FrontendSyncManager, CustomGameScanner)
+- Survey Group 4: Storefront Services (SteamService, EpicService, GOGService, AmazonService)
+- Output survey report to survey_report.md and handoff.md
 
 ## Current Parent
-- Conversation ID: 39631fec-37ca-4d7d-9fe3-fdb7c715ad76
+- Conversation ID: 017210ce-a45a-4a23-a21c-5ea8382d0cae
 - Updated: not yet
 
 ## Investigation State
-- **Explored paths**: None yet
-- **Key findings**: Initializing
-- **Unexplored areas**: Entire repository search for PrefManager
+- **Explored paths**: [TBD]
+- **Key findings**: [TBD]
+- **Unexplored areas**: Group 3 classes and Group 4 services and all their references
 
 ## Key Decisions Made
-- Use grep_search, find_by_name, and view_file to perform exhaustive analysis without modifying source code.
+- Starting survey of codebase for Group 3 and Group 4.
 
 ## Artifact Index
-- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\explorer_survey_2\DISPATCH.md
-- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\explorer_survey_2\BRIEFING.md
-- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\explorer_survey_2\handoff.md (pending)
+- survey_report.md — Comprehensive survey report for Groups 3 & 4
+- handoff.md — Standard 5-component handoff report

@@ -1,168 +1,135 @@
-# Handoff Report — Explorer 3: DI Architecture & Build Verifier
+# Handoff Report — Explorer Survey 3: Group 5, Group 6, DI Infrastructure & Unit Tests
 
 ## 1. Observation
 
-### Codebase & Dependency Injection State
-- **Application Class**: `PluviaApp` (`app/src/main/java/app/gamenative/PluviaApp.kt:54`) is annotated with `@HiltAndroidApp` and inherits from `SplitCompatApplication`. It injects `GOGGameDao`, `AmazonGameDao`, and `FavoritesRepository`. In `onCreate()` line 104, it initializes `PrefManager.init(this)`.
-- **Hilt Version & Plugins**:
-  - Dagger Hilt `2.55` (`gradle/libs.versions.toml:9`)
-  - KSP `2.1.21-2.0.2` (`gradle/libs.versions.toml:21`)
-  - Kotlin `2.1.21` (`gradle/libs.versions.toml:19`)
-  - Android Gradle Plugin `8.8.0` (`gradle/libs.versions.toml:3`)
-  - DataStore Preferences `1.1.2` (`gradle/libs.versions.toml:10`)
-  - Room `2.8.4` (`gradle/libs.versions.toml:39`)
-- **Existing Hilt Modules**:
-  1. `app.gamenative.di.DatabaseModule` (`app/src/main/java/app/gamenative/di/DatabaseModule.kt:25`): `@InstallIn(SingletonComponent::class)`, `@Provides @Singleton` for `PluviaDatabase` (using `@ApplicationContext context: Context`) and 14 Room DAOs.
-  2. `app.gamenative.di.RepositoryModule` (`app/src/main/java/app/gamenative/di/RepositoryModule.kt:11`): `@InstallIn(SingletonComponent::class)`, `@Binds @Singleton` for `FavoritesRepository` (`DefaultFavoritesRepository`).
-  3. `app.gamenative.di.AppThemeModule` (`app/src/main/java/app/gamenative/di/AppThemeModule.kt:58`): `@InstallIn(SingletonComponent::class)`, `@Provides @Singleton` for `IAppTheme` (`AppThemeImpl`). Currently reads/writes `PrefManager.appTheme` and `PrefManager.appThemePalette`.
-  4. `app.gamenative.core.coroutines.CoroutinesModule` (`app/src/main/java/app/gamenative/core/coroutines/CoroutinesModule.kt:13`): `@InstallIn(SingletonComponent::class)`, provides `@IoDispatcher`, `@DefaultDispatcher`, `@MainDispatcher`, `@MainImmediateDispatcher`, `@UnconfinedDispatcher`, and `@ApplicationScope CoroutineScope`.
-  5. `app.gamenative.core.system.SystemServicesModule` (`app/src/main/java/app/gamenative/core/system/SystemServicesModule.kt:24`): `@InstallIn(SingletonComponent::class)`, provides 13 Android system services using `@ApplicationContext context: Context`.
-  6. `app.gamenative.core.appinfo.AppBuildInfoModule` (`app/src/main/java/app/gamenative/core/appinfo/AppBuildInfoModule.kt:9`): `@InstallIn(SingletonComponent::class)`, `@Binds @Singleton` `AppBuildInfo` -> `DefaultAppBuildInfo`.
-  7. `app.gamenative.core.appinfo.StringResolverModule` (`app/src/main/java/app/gamenative/core/appinfo/StringResolverModule.kt:9`): `@InstallIn(SingletonComponent::class)`, `@Binds @Singleton` `StringResolver` -> `AndroidStringResolver`.
-  8. `app.gamenative.core.id.IdModule` (`app/src/main/java/app/gamenative/core/id/IdModule.kt:9`): `@InstallIn(SingletonComponent::class)`, `@Binds @Singleton` `IdGenerator` -> `DefaultIdGenerator`.
-  9. `app.gamenative.core.time.TimeModule` (`app/src/main/java/app/gamenative/core/time/TimeModule.kt:9`): `@InstallIn(SingletonComponent::class)`, `@Binds @Singleton` `TimeProvider` -> `SystemTimeProvider`.
-  10. `app.gamenative.core.storage.StorageModule` (`app/src/main/java/app/gamenative/core/storage/StorageModule.kt:9`): `@InstallIn(SingletonComponent::class)`, `@Binds @Singleton` `AppStoragePaths` -> `AndroidAppStoragePaths`.
-  11. `app.gamenative.core.runtime.RuntimeModule` (`app/src/main/java/app/gamenative/core/runtime/RuntimeModule.kt:9`): `@InstallIn(SingletonComponent::class)`, `@Binds @Singleton` `GameSessionManager` -> `DefaultGameSessionManager`.
-  12. `app.gamenative.core.runtime.GameSessionModule` (`app/src/main/java/app/gamenative/core/runtime/GameSessionModule.kt:13`): `@InstallIn(GameSessionComponent::class)`, provides `@GameSessionScoped @GameSessionCoroutineScope CoroutineScope`.
-- **Custom Components & EntryPoints**:
-  - `GameSessionComponent` (`app/src/main/java/app/gamenative/core/runtime/GameSessionComponent.kt:12`): `@DefineComponent(parent = SingletonComponent::class)` representing session lifecycle.
-  - `GameSessionEntryPoint` (`app/src/main/java/app/gamenative/core/runtime/GameSessionEntryPoint.kt:11`): `@EntryPoint @InstallIn(GameSessionComponent::class)`.
-  - Established EntryPoint Access in Non-Hilt classes:
-    - `NexusModManager` (`app/src/main/java/app/gamenative/mods/NexusModManager.kt:89`): `@EntryPoint @InstallIn(SingletonComponent::class) interface ModDaoEntryPoint` -> resolved with `EntryPointAccessors.fromApplication(context, ModDaoEntryPoint::class.java)`.
-    - `ContainerStorageManager` (`app/src/main/java/app/gamenative/utils/ContainerStorageManager.kt:47`): `@EntryPoint @InstallIn(SingletonComponent::class) interface StorageManagerDaoEntryPoint` -> resolved with `EntryPointAccessors.fromApplication(context.applicationContext, StorageManagerDaoEntryPoint::class.java)`.
-    - `FrontendSyncManager` (`app/src/main/java/app/gamenative/sync/FrontendSyncManager.kt:43`): `@EntryPoint @InstallIn(SingletonComponent::class) interface FrontendSyncEntryPoint` -> resolved with `EntryPointAccessors.fromApplication(context, FrontendSyncEntryPoint::class.java)`.
-    - `AmazonService` (`app/src/main/java/app/gamenative/service/amazon/AmazonService.kt:46`): `@EntryPoint @InstallIn(SingletonComponent::class) interface AmazonDaoEntryPoint`.
-- **Android EntryPoints & ViewModels**:
-  - Activities: `MainActivity` (`@AndroidEntryPoint`), `ImmersiveXrActivity` (`@AndroidEntryPoint`).
-  - Services: `SteamService` (`@AndroidEntryPoint`), `EpicService` (`@AndroidEntryPoint`), `GOGService` (`@AndroidEntryPoint`), `AmazonService` (`@AndroidEntryPoint`).
-  - ViewModels with `@HiltViewModel`: `MainViewModel`, `LibraryViewModel`, `DownloadsViewModel`, `GogRecommendationsViewModel`.
-  - ViewModels currently without `@HiltViewModel`: `UserLoginViewModel`, `HomeViewModel`, `XServerViewModel`.
-- **PrefManager Analysis**:
-  - `app.gamenative.PrefManager` (`app/src/main/java/app/gamenative/PrefManager.kt`): 1509 lines, singleton `object PrefManager`.
-  - DataStore name: `"PluviaPreferences"` (`preferencesDataStore(name = "PluviaPreferences", ...)`).
-  - Usages: ~100 files across UI, ViewModels, Services, Utils, Data Repositories, and Java components.
-  - Java accesses: `WineUtils.java:70` and `BionicProgramLauncherComponent.java:524, 536, 601-603` access `app.gamenative.PrefManager.INSTANCE`.
-  - Note on Winlator Preferences: `com.winlator.PrefManager` (`app/src/main/java/com/winlator/PrefManager.kt`) is a distinct 78-line manager for `"WinlatorPreferences"`. `ControllerManager.java` had an unused import of `app.gamenative.PrefManager` which can be cleaned up.
-- **Gradle Build & Flavors**:
-  - Dimensions: `androidApi`
-  - Flavors: `legacy` (minSdk 26, targetSdk 28), `legacyXr` (minSdk 26, targetSdk 28), `modern` (minSdk 29, targetSdk 36), `modernXr` (minSdk 29, targetSdk 36).
-  - Build Types: `debug`, `release`, `release-signed`, `release-gold`.
-  - Primary verification targets:
-    - Compile: `./gradlew compileModernDebugKotlin`
-    - Test: `./gradlew :app:testModernDebugUnitTest`
-  - Gradle User Home configured on `D:\`. Build cache enabled; `--no-build-cache` flag prohibited unless strictly needed.
+### Group 5: Advanced Subsystems (`BestConfigService`, `WorkshopManager`)
+- **`BestConfigService`** (`app/src/main/java/app/gamenative/utils/BestConfigService.kt:32`):
+  - Declared as `object BestConfigService` (1007 lines).
+  - Holds API constant `API_BASE_URL` ("https://api.gamenative.app/api/best-config"), `httpClient` (`Net.http`), and in-memory cache `ConcurrentHashMap<String, BestConfigResponse>`.
+  - Escape Hatches Observed:
+    - Line 812: `context.preferencesEntryPoint().containerPreferences()`
+    - Line 813: `context.preferencesEntryPoint().authPreferences()`
+    - Line 155: `context.getString(R.string...)` inside `getCompatibilityMessage()`
+    - Lines 272-307, 511-527, 782-811: `context: Context` parameter prop-drilled across `prepareConfigForApplication()`, `validateComponentVersions()`, `resolveMissingManifestInstallRequests()`, and `parseConfigToContainerData()`.
+  - Call Sites:
+    - `app/src/main/java/app/gamenative/ui/PluviaMain.kt:1738`
+    - `app/src/main/java/app/gamenative/ui/component/dialog/CommunityConfigsDialog.kt:765`
+    - `app/src/main/java/app/gamenative/ui/screen/library/appscreen/BaseAppScreen.kt:90, 870, 897, 913, 997, 1014`
+    - `app/src/main/java/app/gamenative/ui/util/ContainerConfigTransfer.kt:96, 111, 119, 157`
+    - `app/src/main/java/app/gamenative/utils/ContainerUtils.kt:871, 878`
+    - `app/src/test/java/app/gamenative/utils/BestConfigServiceTest.kt:22, 108, 137, 164, ...`
+
+- **`WorkshopManager`** (`app/src/main/java/app/gamenative/workshop/WorkshopManager.kt:74`):
+  - Declared as `object WorkshopManager` (4503 lines).
+  - Escape Hatches Observed:
+    - Line 78: `runCatching { SteamService.instance?.let { PreferencesEntryPoint.get(it).downloadPreferences() } }.getOrNull()`
+    - Line 80: `runCatching { SteamService.instance?.let { PreferencesEntryPoint.get(it).containerPreferences() } }.getOrNull()`
+    - Line 4104: `PreferencesEntryPoint.get(context).containerPreferences().launchBionicSteam`
+    - Lines 1423, 4095: `SteamService.getAppDirPath(appId)`
+    - Lines 1424, 4096: `SteamService.getAppInfoOf(appId)`
+    - Lines 4224, 4225: `SteamService.instance?.steamClient`, `SteamService.userSteamId`
+    - Lines 4229, 4240, 4241, 4242, 4247, 4308, 4349, 4351, 4362, 4363: `SteamService.*` download registry & DB calls.
+  - Call Sites:
+    - `app/src/main/java/app/gamenative/service/SteamService.kt:4004, 4012`
+    - `app/src/main/java/app/gamenative/ui/PluviaMain.kt:2039, 2056, 2079, 2087, 2120, 2134, 2174, 2180, 2196`
+    - `app/src/main/java/app/gamenative/ui/component/dialog/WorkshopManagerDialog.kt:130`
+    - `app/src/main/java/app/gamenative/ui/screen/library/appscreen/SteamAppScreen.kt:505, 509, 1399, 1429, 1434`
+    - `app/src/test/java/app/gamenative/workshop/WorkshopManagerTest.kt:19, 101, 106, 111, 118, ...`
+
+---
+
+### Group 6: PluviaApp (`PluviaApp.companion`)
+- **`PluviaApp`** (`app/src/main/java/app/gamenative/PluviaApp.kt:56`):
+  - Declared as `@HiltAndroidApp class PluviaApp : SplitCompatApplication()`.
+  - Companion object (lines 232-360) holds:
+    1. Game Session Runtime State: `xEnvironment: XEnvironment?`, `xServerView: XServerRendererView?`, `inputControlsView: InputControlsView?`, `inputControlsManager: InputControlsManager?`, `touchpadView: TouchpadView?`, `radialMenuCoordinator: RadialMenuCoordinator?`, `achievementWatcher: AchievementWatcher?`, `activeSuspendPolicy: String`, `hasInitializedSuspendPolicyState: Boolean`, `isOverlayPaused: Boolean`, `shutdownEnvironment()`, `clearActiveSuspendState()`, `setActiveSuspendPolicy()`, `hasValidSuspendPolicyState()`, `isNeverSuspendMode()`, `isManualSuspendMode()`.
+    2. Global App Event Bus & Utilities: `events: EventDispatcher`, `isActivityInForeground: Boolean`, `getDefaultScreenSize(): String`, `instance: PluviaApp`, `onDestinationChangedListener: NavChangedListener?`.
+  - Existing Game Session Infrastructure:
+    - `GameSessionScope.kt`: `@Scope @Retention(RUNTIME) annotation class GameSessionScoped`
+    - `GameSessionComponent.kt`: `@GameSessionScoped @DefineComponent(parent = SingletonComponent::class) interface GameSessionComponent`
+    - `GameSessionEntryPoint.kt`: `@EntryPoint @InstallIn(GameSessionComponent::class) interface GameSessionEntryPoint`
+    - `GameSessionManager.kt`: `interface GameSessionManager` with `activeSession: StateFlow<ActiveGameSession?>`
+    - `DefaultGameSessionManager.kt`: `@Singleton class DefaultGameSessionManager @Inject constructor(...) : GameSessionManager`
+    - `GameSessionModule.kt`: Provides `@GameSessionScoped @GameSessionCoroutineScope CoroutineScope`.
+
+---
+
+### DI Infrastructure & Existing Unit Tests
+- **Hilt Modules Observed**:
+  - `SystemServicesModule` (`core/system/`): Provides 13 system services (ConnectivityManager, NotificationManager, PowerManager, DisplayManager, etc.).
+  - `StorageModule` (`core/storage/`): Binds `AppStoragePaths` (`AndroidAppStoragePaths`).
+  - `StringResolverModule` (`core/appinfo/`): Binds `StringResolver` (`AndroidStringResolver`).
+  - `PreferencesDataStoreModule` & `PreferencesBindingModule` (`di/PreferencesModule.kt`): Provides `@PluviaDataStore DataStore<Preferences>` and binds 7 domain preference repositories.
+  - `DatabaseModule`, `RepositoryModule`, `CoroutinesModule`, `IdModule`, `TimeModule`, `AppBuildInfoModule`, `RuntimeModule`, `GameSessionModule`.
+- **Existing Unit Tests**:
+  - `BestConfigServiceTest.kt` (`app/src/test/java/app/gamenative/utils/BestConfigServiceTest.kt`): 1094 lines, 36 Robolectric unit tests covering all config parsing, GPU fallback/exact matching, and manifest dependency checks.
+  - `WorkshopManagerTest.kt` (`app/src/test/java/app/gamenative/workshop/WorkshopManagerTest.kt`): 652 lines, 50+ JUnit unit tests covering mod ID parsing, cleanup, sync detection, stale directory detection, and compatibility symlinks.
+  - `GameSessionManagerTest.kt` (`app/src/test/java/app/gamenative/core/runtime/GameSessionManagerTest.kt`): Tests lifecycle transitions and teardown logic with `FakeGameSessionManager`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Requirement R1 & R2 (Preference Repositories & Dagger Hilt)**:
-   - `PrefManager` currently acts as a monolithic singleton managing over 60 distinct preference keys with mixed responsibilities (Auth, Container configs, HUD toggles, Downloads, Steam/GOG/Epic credentials, Theme, UI state).
-   - Because `PluviaApp` already uses `@HiltAndroidApp` with `SingletonComponent`, preference repositories must be defined as interfaces, implemented with `@Inject constructor(private val dataStore: DataStore<Preferences>, ...)` or injected dependencies, and exposed via `@InstallIn(SingletonComponent::class)` modules using `@Binds @Singleton`.
-   - To guarantee **zero data loss** (R1 requirement), the DataStore name MUST remain `"PluviaPreferences"` and all preference keys (`stringPreferencesKey`, `booleanPreferencesKey`, `intPreferencesKey`, `floatPreferencesKey`, `longPreferencesKey`, `byteArrayPreferencesKey`) must use the exact identical string identifiers currently defined in `PrefManager.kt`.
+1. **Group 5 Conversion**:
+   - `BestConfigService` currently fetches remote configurations, validates available versions against resource string arrays and manifest components, and performs GPU-specific overrides. By converting it to `@Singleton class BestConfigService @Inject constructor(...)` with `@ApplicationContext context: Context`, `containerPreferences: ContainerPreferences`, `authPreferences: AuthPreferences`, and `stringResolver: StringResolver`:
+     - We completely eliminate `context.preferencesEntryPoint()` calls (lines 812, 813).
+     - We eliminate `context: Context` parameter from `getCompatibilityMessage()` (using `stringResolver`).
+     - We clean up public caller methods `parseConfigToContainerData`, `parseConfigResult`, and `resolveMissingManifestInstallRequests`.
+   - `WorkshopManager` currently manages Steam workshop mod subscriptions, downloads, disk validation, and symlink creation. By converting it to `@Singleton class WorkshopManager @Inject constructor(...)` with `@ApplicationContext context: Context`, `downloadPreferences: DownloadPreferences`, `containerPreferences: ContainerPreferences`, `appStoragePaths: AppStoragePaths`, and `steamManagerProvider: Provider<SteamManager>`:
+     - We eliminate `PreferencesEntryPoint.get(SteamService.instance)` (lines 78, 80) and `PreferencesEntryPoint.get(context)` (line 4104).
+     - Static callers in `SteamService`, `SteamAppScreen`, `PluviaMain`, and `WorkshopManagerDialog` receive `WorkshopManager` via `@Inject` or method parameters.
 
-2. **Domain Grouping Recommendation for Preference Repositories**:
-   - `AuthPreferences`: Steam credentials (`user_name`, `access_token_enc`, `refresh_token_enc`, `steam_id`, `stable_anonymous_user_id`, `clearSteamSessionPreferences()`).
-   - `ContainerPreferences`: Wine/Proton/FEX/box86 settings (`screen_size`, `env_vars`, `graphics_driver`, `graphics_driver_version`, `graphics_driver_config`, `renderer_present_mode`, `display_renderer_mode`, `sf_compat_mode`, `use_legacy_renderer`, `sharpness_effect`, `sharpness_level`, `sharpness_denoise`, `container_variant`, `wine_version`, `emulator`, `fexcore_version`, `fexcore_tso_mode`, `fexcore_x87_mode`, `fexcore_multiblock`, `dxwrapper`, `dxwrapperConfig`, `audio_driver`, `pulseaudio_low_latency`, `wincomponents`, `drives`, `custom_game_manual_folders`).
-   - `PerformancePreferences`: HUD display toggles (`show_fps`, `performance_hud_compact_mode`, `performance_hud_show_frame_rate`, `performance_hud_show_cpu_usage`, `performance_hud_show_gpu_usage`, `performance_hud_show_ram_usage`, `performance_hud_show_battery_level`, `performance_hud_show_power_draw`, `performance_hud_show_battery_runtime`, `performance_hud_show_battery_temperature`, `performance_hud_show_clock_time`, `performance_hud_show_cpu_temperature`, `performance_hud_show_gpu_temperature`, `performance_hud_show_fan`, `performance_hud_show_tuner_caps`, graphs, opacity, color intensity, outline, size, position, auto-tuning profiles, power profiles).
-   - `ThemePreferences` / `IAppTheme`: App theme and palette (`app_theme`, `app_theme_palette`). `AppThemeImpl` should be refactored to consume `ThemePreferences` instead of `PrefManager`.
-   - `DownloadPreferences`: Download & storage settings (`auto_update_games`, `download_cellular`, `download_speed_limit`, `install_location`, `sd_card_path`, `automatic_shader_pre_caching`).
-   - `SteamPreferences`: Steam ecosystem properties (`steam_branch`, `steam_cell_id`, `steam_persona_state`, `steam_persona_name`, `steam_force_run_sync_timestamp`, `component_manifest_json`, `component_manifest_fetched_at`, `last_pics_change_number`, `steam_app_run_map`, `steam_cache_version`, `steam_cloud_sync`).
-   - `GogPreferences`: GOG account and sync settings (`gog_user_id`, `gog_access_token`, `gog_refresh_token`, `gog_expires_in`, `gog_sync_config_path`, `gog_export_dir`).
-   - `EpicPreferences`: Epic account and sync settings (`epic_account_id`, `epic_display_name`, `epic_access_token`, `epic_refresh_token`, `epic_expires_at`, `epic_export_dir`, `epic_cloud_sync_enabled`).
-   - `AmazonPreferences`: Amazon account and sync settings (`amazon_user_id`, `amazon_access_token`, `amazon_refresh_token`, `amazon_export_dir`).
-   - `UiPreferences`: General UI and navigation state (`app_language`, `app_orientation`, `initial_screen`, `quick_menu_last_tab`, `default_filter`, `homepage_favorite_category`, `side_panel_open`, `favorite_app_ids`, `force_expanded_tablet_library`, `rec_disclosure_shown`, `show_recommendations`, `tipped`, `last_warm_pitch_time`).
-   - `AnalyticsPreferences`: Analytics telemetry settings (`usage_analytics_enabled`, `crash_reporting_enabled`).
+2. **Group 6 PluviaApp Companion Extraction**:
+   - `PluviaApp.companion` currently acts as a global mutable state holder for active game sessions and app-wide singletons.
+   - The session-specific runtime fields (`xEnvironment`, `xServerView`, `inputControlsView`, `inputControlsManager`, `touchpadView`, `radialMenuCoordinator`, `achievementWatcher`, suspend policies, and `shutdownEnvironment()`) logically belong to the active playing session lifecycle.
+   - By creating `@GameSessionScoped class GameSessionRuntime @Inject constructor(...)`:
+     - All runtime views and execution handles are scoped directly to the `GameSessionComponent`.
+     - When `GameSessionManager.startSession(...)` is called, `GameSessionComponent` is built with `ActiveGameSessionInfo`.
+     - When `GameSessionManager.endSession(...)` or `terminate()` runs, `GameSessionRuntime.shutdown()` executes clean teardown, eliminating static memory leaks.
+   - For global utilities:
+     - `EventDispatcher`: Becomes `@Singleton class EventDispatcher @Inject constructor()`, provided via Hilt and injected into callers (`MainActivity`, `SteamService`, etc.).
+     - `getDefaultScreenSize()`: Moved to `@Singleton class ScreenSizeResolver @Inject constructor(displayManager: DisplayManager)` or provided via `SystemServicesModule`.
+     - `isActivityInForeground`: Managed in `@Singleton class AppLifecycleState @Inject constructor()`.
 
-3. **Requirement R2 & Non-Hilt Classes (EntryPoint Pattern)**:
-   - For classes not managed by Hilt (e.g. `ContainerStorageManager`, `FrontendSyncManager`, `NexusModManager`, `WineUtils.java`, `BionicProgramLauncherComponent.java`), create a consolidated `@EntryPoint`:
-     ```kotlin
-     @EntryPoint
-     @InstallIn(SingletonComponent::class)
-     interface PreferencesEntryPoint {
-         fun authPreferences(): AuthPreferences
-         fun containerPreferences(): ContainerPreferences
-         fun performancePreferences(): PerformancePreferences
-         fun themePreferences(): ThemePreferences
-         fun downloadPreferences(): DownloadPreferences
-         fun steamPreferences(): SteamPreferences
-         fun gogPreferences(): GogPreferences
-         fun epicPreferences(): EpicPreferences
-         fun amazonPreferences(): AmazonPreferences
-         fun uiPreferences(): UiPreferences
-         fun analyticsPreferences(): AnalyticsPreferences
-     }
-     ```
-   - For Kotlin callers:
-     ```kotlin
-     val prefs = EntryPointAccessors.fromApplication(context.applicationContext, PreferencesEntryPoint::class.java)
-     ```
-   - For Java callers (`WineUtils.java`, `BionicProgramLauncherComponent.java`):
-     ```java
-     PreferencesEntryPoint ep = EntryPointAccessors.fromApplication(context.getApplicationContext(), PreferencesEntryPoint.class);
-     AuthPreferences authPrefs = ep.authPreferences();
-     ```
-   - For early lifecycle hooks (`attachBaseContext` in `MainActivity` and `SteamService`):
-     ```kotlin
-     val ep = EntryPointAccessors.fromApplication(newBase.applicationContext ?: newBase, PreferencesEntryPoint::class.java)
-     val languageCode = ep.uiPreferences().appLanguage
-     ```
+3. **DI Infrastructure & Utilities Readiness**:
+   - Existing modules already provide `AppStoragePaths`, `StringResolver`, `SystemServicesModule` (13 services), `PreferencesModule` (`@PluviaDataStore`), and coroutine dispatchers.
+   - Minor additions required: Provide `EventDispatcher` in `SingletonComponent`, provide `OkHttpClient` (`Net.http`), and provide `ScreenSizeResolver`.
 
-4. **Testing Architecture & Fake/Mock Strategy**:
-   - The project uses JUnit 4, Robolectric 4.14, Mockito Kotlin 5.3.1, and MockK 1.13.5.
-   - With preference repositories segregated into clean interfaces, unit tests (such as `DefaultFavoritesRepositoryTest`, `LibraryViewModelTest`, `UserLoginViewModelTest`) can pass lightweight in-memory fake implementations or Mockito mocks of `AuthPreferences`, `ContainerPreferences`, etc., eliminating the need for `PrefManager.init(context)` or actual disk-backed DataStore operations in test harnesses.
+4. **Existing Unit Tests Migration**:
+   - `BestConfigServiceTest` and `WorkshopManagerTest` will instantiate the refactored `@Singleton class` directly in `@Before` setup using `ApplicationProvider.getApplicationContext()` and mock/fake preference repositories.
 
 ---
 
 ## 3. Caveats
 
-1. **Synchronous vs. Asynchronous Migration Access**:
-   - `PrefManager` currently uses `runBlocking { dataStore.data.first()[key] ?: defaultValue }` for synchronous property getters.
-   - To make the migration across ~100 files smooth and avoid race conditions or deadlocks:
-     - The new preference repositories should provide convenient synchronous property getters/setters (or in-memory cached state flows) alongside reactive `Flow<T>` or suspend functions.
-     - This ensures existing synchronous callers (e.g. inside composables, UI delegates, or legacy Winlator Java methods) can be migrated without rewriting the entire calling architecture to coroutines in a single leap.
-2. **Double Preference Managers in Codebase**:
-   - `app.gamenative.PrefManager` (subject of this refactoring) vs `com.winlator.PrefManager` (legacy Winlator preferences).
-   - Only `app.gamenative.PrefManager` is being replaced and deleted; `com.winlator.PrefManager` should remain untouched.
-3. **Execution Environment**:
-   - Subagent terminal command execution for long-running Gradle tasks requires non-interactive execution or running with appropriate permissions.
+- **XR Build Support**: `ImmersiveXrActivity.kt` accesses `PluviaApp.xServerView` directly for Vulkan and OpenGL XR frame bridges (`setVulkanXrFrameBridge`, `setXrFrameBridge`). These call sites must receive `GameSessionManager` / `GameSessionRuntime` via injection.
+- **DEX Register Limits**: `XServerScreen.kt` is near the Dex verifier register limit. Helper parameter bundling (such as `ImmersiveSessionHooks`) should be preserved when passing `GameSessionRuntime` to avoid runtime Dex verification errors.
+- **Read-Only Explorer Phase**: No source code modifications were performed during this survey.
 
 ---
 
 ## 4. Conclusion
 
-- **DI Architecture Readiness**: The codebase is 100% ready for full preference repository migration. The Hilt foundation (`@HiltAndroidApp`, `SingletonComponent`, `CoroutinesModule`, `SystemServicesModule`, `DatabaseModule`, `RepositoryModule`, `@AndroidEntryPoint`, `@HiltViewModel`, `EntryPointAccessors`) is already well-established.
-- **Repository Segregation Strategy**: Partition the monolithic 1509-line `PrefManager` into 11 domain repositories (`AuthPreferences`, `ContainerPreferences`, `PerformancePreferences`, `ThemePreferences`, `DownloadPreferences`, `SteamPreferences`, `GogPreferences`, `EpicPreferences`, `AmazonPreferences`, `UiPreferences`, `AnalyticsPreferences`).
-- **DataStore Preservation**: Provide a single `DataStore<Preferences>` instance (`name = "PluviaPreferences"`) in `PreferencesDataStoreModule` to guarantee 0 data loss.
-- **Non-Hilt Resolution**: Provide `PreferencesEntryPoint` installed in `SingletonComponent` using `EntryPointAccessors.fromApplication(...)` for static objects, native bridges, and Java classes (`WineUtils.java`, `BionicProgramLauncherComponent.java`).
-- **Phased Implementation Execution**:
-  1. Module & Repo definitions (`di/PreferencesModule.kt`, `preferences/*Preferences.kt`).
-  2. Core / Data migration (`data/*`, `core/*`).
-  3. Services migration (`service/*`).
-  4. ViewModels & UI migration (`ui/*`, `MainActivity.kt`).
-  5. Utils & Winlator bridges (`utils/*`, `com/winlator/*`).
-  6. Final eradication of `object PrefManager` and validation.
+- Group 5 (`BestConfigService`, `WorkshopManager`) and Group 6 (`PluviaApp.companion` / `GameSessionScoped`) are fully mapped with zero ambiguities.
+- Every escape hatch (`PreferencesEntryPoint`, `EntryPointAccessors`, `Context` prop-drilling) has been identified with exact line numbers and concrete `@Inject constructor` replacements.
+- All 15+ caller files and 100+ call sites across UI screens, ViewModels, and services have been cataloged.
+- The project's DI infrastructure already contains the necessary foundation (`GameSessionComponent`, `GameSessionManager`, `SystemServicesModule`, `AppStoragePaths`, `StringResolver`, `PreferencesModule`).
+- The full architectural artifact has been generated at `C:\Users\VladK\.gemini\antigravity\brain\8674d8dc-f545-44e0-9158-c9a48781b3e1\survey_report.md`.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify the architecture and baseline:
+To independently verify the survey findings and ensure clean compilation after refactoring:
 
-1. **Inspect Module & EntryPoint Patterns**:
-   - View `app/src/main/java/app/gamenative/di/DatabaseModule.kt`
-   - View `app/src/main/java/app/gamenative/di/RepositoryModule.kt`
-   - View `app/src/main/java/app/gamenative/mods/NexusModManager.kt` (lines 85-110)
-   - View `app/src/main/java/app/gamenative/utils/ContainerStorageManager.kt` (lines 45-55, 155-165)
-2. **Inspect PrefManager Dependencies**:
-   - View `app/src/main/java/app/gamenative/PrefManager.kt`
-   - View `app/src/main/java/com/winlator/core/WineUtils.java` (line 70)
-   - View `app/src/main/java/com/winlator/xenvironment/components/BionicProgramLauncherComponent.java` (lines 524, 536, 601-603)
-3. **Run Baseline Compilation & Unit Tests**:
-   - Command (PowerShell): `.\gradlew compileModernDebugKotlin`
-   - Command (PowerShell): `.\gradlew :app:testModernDebugUnitTest`
-   - Ensure `GRADLE_USER_HOME` is set to `D:\` and do NOT use `--no-build-cache`.
-4. **Post-Refactoring Acceptance Verification**:
-   - Check `git grep "PrefManager"` to ensure 0 references remain to `app.gamenative.PrefManager`.
-   - Verify `compileModernDebugKotlin` passes.
-   - Verify `:app:testModernDebugUnitTest` passes.
+1. **Source Inspection**:
+   - Inspect `app/src/main/java/app/gamenative/utils/BestConfigService.kt`
+   - Inspect `app/src/main/java/app/gamenative/workshop/WorkshopManager.kt`
+   - Inspect `app/src/main/java/app/gamenative/PluviaApp.kt`
+   - Inspect `app/src/main/java/app/gamenative/core/runtime/` (`GameSessionComponent.kt`, `GameSessionManager.kt`)
+2. **Build Verification**:
+   - `./gradlew compileModernDebugKotlin`
+3. **Unit Tests Verification**:
+   - `./gradlew :app:testModernDebugUnitTest --tests "app.gamenative.utils.BestConfigServiceTest"`
+   - `./gradlew :app:testModernDebugUnitTest --tests "app.gamenative.workshop.WorkshopManagerTest"`
+   - `./gradlew :app:testModernDebugUnitTest --tests "app.gamenative.core.runtime.GameSessionManagerTest"`
