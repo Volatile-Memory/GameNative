@@ -1,9 +1,16 @@
 package app.gamenative.workshop
 
+import android.content.Context
+import app.gamenative.core.storage.AppStoragePaths
 import app.gamenative.data.GameSource
+import app.gamenative.preferences.ContainerPreferences
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.service.SteamManager
 import app.gamenative.workshop.compatibility.WorkshopCompatibilityOverride
 import app.gamenative.workshop.compatibility.WorkshopCompatibilityRegistry
 import app.gamenative.workshop.compatibility.WorkshopExposureMode
+import io.mockk.mockk
+import javax.inject.Provider
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,12 +27,27 @@ class WorkshopManagerTest {
 
     private lateinit var tempDir: File
     private lateinit var workshopContentDir: File
+    private lateinit var workshopManager: WorkshopManager
 
     @Before
     fun setUp() {
         tempDir = createTempDirectory("workshop_test").toFile()
         workshopContentDir = File(tempDir, "content")
         workshopContentDir.mkdirs()
+
+        val context = mockk<Context>(relaxed = true)
+        val downloadPreferences = mockk<DownloadPreferences>(relaxed = true)
+        val containerPreferences = mockk<ContainerPreferences>(relaxed = true)
+        val appStoragePaths = mockk<AppStoragePaths>(relaxed = true)
+        val steamManagerProvider = mockk<Provider<SteamManager>>(relaxed = true)
+
+        workshopManager = WorkshopManager(
+            context = context,
+            downloadPreferences = downloadPreferences,
+            containerPreferences = containerPreferences,
+            appStoragePaths = appStoragePaths,
+            steamManagerProvider = steamManagerProvider,
+        )
     }
 
     @After
@@ -98,24 +120,24 @@ class WorkshopManagerTest {
 
     @Test
     fun parseEnabledIds_nullInput_returnsEmptySet() {
-        assertEquals(emptySet<Long>(), WorkshopManager.parseEnabledIds(null))
+        assertEquals(emptySet<Long>(), workshopManager.parseEnabledIds(null))
     }
 
     @Test
     fun parseEnabledIds_emptyString_returnsEmptySet() {
-        assertEquals(emptySet<Long>(), WorkshopManager.parseEnabledIds(""))
+        assertEquals(emptySet<Long>(), workshopManager.parseEnabledIds(""))
     }
 
     @Test
     fun parseEnabledIds_singleId_returnsSetWithOneElement() {
-        assertEquals(setOf(12345L), WorkshopManager.parseEnabledIds("12345"))
+        assertEquals(setOf(12345L), workshopManager.parseEnabledIds("12345"))
     }
 
     @Test
     fun parseEnabledIds_multipleIds_returnsCorrectSet() {
         assertEquals(
             setOf(100L, 200L, 300L),
-            WorkshopManager.parseEnabledIds("100,200,300"),
+            workshopManager.parseEnabledIds("100,200,300"),
         )
     }
 
@@ -123,7 +145,7 @@ class WorkshopManagerTest {
     fun parseEnabledIds_whitespace_isTrimmed() {
         assertEquals(
             setOf(100L, 200L, 300L),
-            WorkshopManager.parseEnabledIds(" 100 , 200 , 300 "),
+            workshopManager.parseEnabledIds(" 100 , 200 , 300 "),
         )
     }
 
@@ -131,7 +153,7 @@ class WorkshopManagerTest {
     fun parseEnabledIds_malformedEntries_areSkipped() {
         assertEquals(
             setOf(100L, 300L),
-            WorkshopManager.parseEnabledIds("100,abc,300,"),
+            workshopManager.parseEnabledIds("100,abc,300,"),
         )
     }
 
@@ -144,7 +166,7 @@ class WorkshopManagerTest {
         addContent(333)
 
         val subscribed = listOf(makeItem(111), makeItem(333))
-        WorkshopManager.cleanupUnsubscribedItems(subscribed, workshopContentDir)
+        workshopManager.cleanupUnsubscribedItems(subscribed, workshopContentDir)
 
         assertTrue(File(workshopContentDir, "111").exists())
         assertFalse(File(workshopContentDir, "222").exists())
@@ -158,7 +180,7 @@ class WorkshopManagerTest {
         addContent(222)
 
         val subscribed = listOf(makeItem(222))
-        WorkshopManager.cleanupUnsubscribedItems(subscribed, workshopContentDir)
+        workshopManager.cleanupUnsubscribedItems(subscribed, workshopContentDir)
 
         assertFalse(File(workshopContentDir, "111").exists())
         assertFalse(File(workshopContentDir, "111.partial").exists())
@@ -170,7 +192,7 @@ class WorkshopManagerTest {
         addContent(111)
         File(workshopContentDir, "metadata").mkdirs()
 
-        WorkshopManager.cleanupUnsubscribedItems(emptyList(), workshopContentDir)
+        workshopManager.cleanupUnsubscribedItems(emptyList(), workshopContentDir)
 
         // Non-numeric dirs are never touched
         assertTrue(File(workshopContentDir, "metadata").exists())
@@ -182,7 +204,7 @@ class WorkshopManagerTest {
     fun cleanup_nonexistentDir_doesNotThrow() {
         val missingDir = File(tempDir, "does_not_exist")
         // Should return without error
-        WorkshopManager.cleanupUnsubscribedItems(emptyList(), missingDir)
+        workshopManager.cleanupUnsubscribedItems(emptyList(), missingDir)
     }
 
     // ── getItemsNeedingSync ─────────────────────────────────────────────
@@ -192,7 +214,7 @@ class WorkshopManagerTest {
         addContent(111)
         val items = listOf(makeItem(111))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, workshopContentDir)
+        val result = workshopManager.getItemsNeedingSync(items, workshopContentDir)
 
         assertEquals(listOf(makeItem(111)), result)
     }
@@ -203,7 +225,7 @@ class WorkshopManagerTest {
         markComplete(111, timestamp = 1000L)
         val items = listOf(makeItem(111, timeUpdated = 1000L))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, workshopContentDir)
+        val result = workshopManager.getItemsNeedingSync(items, workshopContentDir)
 
         assertTrue(result.isEmpty())
     }
@@ -214,7 +236,7 @@ class WorkshopManagerTest {
         markComplete(111, timestamp = 1000L)
         val items = listOf(makeItem(111, timeUpdated = 2000L))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, workshopContentDir)
+        val result = workshopManager.getItemsNeedingSync(items, workshopContentDir)
 
         assertEquals(1, result.size)
         assertEquals(111L, result[0].publishedFileId)
@@ -224,7 +246,7 @@ class WorkshopManagerTest {
     fun sync_unavailableItem_isSkipped() {
         val items = listOf(makeItem(111, fileUrl = "", manifestId = 0L))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, workshopContentDir)
+        val result = workshopManager.getItemsNeedingSync(items, workshopContentDir)
 
         assertTrue(result.isEmpty())
     }
@@ -233,7 +255,7 @@ class WorkshopManagerTest {
     fun sync_manifestOnlyItem_needsSync() {
         val items = listOf(makeItem(111, fileUrl = "", manifestId = 999L))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, workshopContentDir)
+        val result = workshopManager.getItemsNeedingSync(items, workshopContentDir)
 
         assertEquals(1, result.size)
     }
@@ -247,7 +269,7 @@ class WorkshopManagerTest {
         // and considers the item up-to-date (no re-download needed).
         val items = listOf(makeItem(111, timeUpdated = 1000L))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, workshopContentDir)
+        val result = workshopManager.getItemsNeedingSync(items, workshopContentDir)
 
         assertTrue(result.isEmpty())
         assertFalse(File(workshopContentDir, "111.partial").exists())
@@ -258,7 +280,7 @@ class WorkshopManagerTest {
         File(workshopContentDir, "111.partial").mkdirs()
         val items = listOf(makeItem(111))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, workshopContentDir)
+        val result = workshopManager.getItemsNeedingSync(items, workshopContentDir)
 
         assertEquals(1, result.size)
     }
@@ -268,7 +290,7 @@ class WorkshopManagerTest {
         val missingDir = File(tempDir, "does_not_exist")
         val items = listOf(makeItem(111), makeItem(222))
 
-        val result = WorkshopManager.getItemsNeedingSync(items, missingDir)
+        val result = workshopManager.getItemsNeedingSync(items, missingDir)
 
         assertEquals(2, result.size)
     }
@@ -281,7 +303,7 @@ class WorkshopManagerTest {
         markComplete(111, timestamp = 1000L)
         val items = listOf(makeItem(111, timeUpdated = 2000L))
 
-        WorkshopManager.updateMarkerTimestamps(items, workshopContentDir)
+        workshopManager.updateMarkerTimestamps(items, workshopContentDir)
 
         val marker = File(File(workshopContentDir, "111"), ".workshop_complete")
         assertEquals("2000", marker.readText().trim())
@@ -293,7 +315,7 @@ class WorkshopManagerTest {
         markComplete(111, timestamp = 1000L)
         val items = listOf(makeItem(111, timeUpdated = 1000L))
 
-        WorkshopManager.updateMarkerTimestamps(items, workshopContentDir)
+        workshopManager.updateMarkerTimestamps(items, workshopContentDir)
 
         val marker = File(File(workshopContentDir, "111"), ".workshop_complete")
         assertEquals("1000", marker.readText().trim())
@@ -305,7 +327,7 @@ class WorkshopManagerTest {
         val items = listOf(makeItem(111, timeUpdated = 2000L))
 
         // Should not throw
-        WorkshopManager.updateMarkerTimestamps(items, workshopContentDir)
+        workshopManager.updateMarkerTimestamps(items, workshopContentDir)
 
         assertFalse(File(workshopContentDir, "111").exists())
     }
@@ -316,7 +338,7 @@ class WorkshopManagerTest {
         markComplete(111, timestamp = 1000L)
         val items = listOf(makeItem(111, timeUpdated = 0L))
 
-        WorkshopManager.updateMarkerTimestamps(items, workshopContentDir)
+        workshopManager.updateMarkerTimestamps(items, workshopContentDir)
 
         // Should remain unchanged
         val marker = File(File(workshopContentDir, "111"), ".workshop_complete")
@@ -329,7 +351,7 @@ class WorkshopManagerTest {
         File(itemDir, ".workshop_complete").writeText("")
         val items = listOf(makeItem(111, timeUpdated = 5000L))
 
-        WorkshopManager.updateMarkerTimestamps(items, workshopContentDir)
+        workshopManager.updateMarkerTimestamps(items, workshopContentDir)
 
         assertEquals("5000", File(itemDir, ".workshop_complete").readText().trim())
     }
@@ -348,7 +370,7 @@ class WorkshopManagerTest {
 
         // gameRootDir just needs to exist; the method checks workshopContentDir
         val gameRootDir = File(tempDir, "game").apply { mkdirs() }
-        WorkshopManager.configureModSymlinks(
+        workshopManager.configureModSymlinks(
             gameRootDir = gameRootDir,
             workshopContentDir = workshopContentDir,
             items = items,
@@ -365,7 +387,7 @@ class WorkshopManagerTest {
         File(workshopContentDir, "111.partial").mkdirs()
 
         val gameRootDir = File(tempDir, "game").apply { mkdirs() }
-        WorkshopManager.configureModSymlinks(
+        workshopManager.configureModSymlinks(
             gameRootDir = gameRootDir,
             workshopContentDir = workshopContentDir,
             items = listOf(makeItem(222)),
@@ -380,7 +402,7 @@ class WorkshopManagerTest {
         addContent(111)
 
         val gameRootDir = File(tempDir, "game").apply { mkdirs() }
-        WorkshopManager.configureModSymlinks(
+        workshopManager.configureModSymlinks(
             gameRootDir = gameRootDir,
             workshopContentDir = workshopContentDir,
             items = emptyList(),
@@ -395,7 +417,7 @@ class WorkshopManagerTest {
         val missingDir = File(tempDir, "missing")
         val gameRootDir = File(tempDir, "game").apply { mkdirs() }
 
-        WorkshopManager.configureModSymlinks(
+        workshopManager.configureModSymlinks(
             gameRootDir = gameRootDir,
             workshopContentDir = missingDir,
             items = listOf(makeItem(111)),
@@ -422,7 +444,7 @@ class WorkshopManagerTest {
         File(gameRootDir, "game/mods").mkdirs()
         val winePrefix = File(tempDir, "wine").apply { mkdirs() }.absolutePath
 
-        WorkshopManager.configureModSymlinks(
+        workshopManager.configureModSymlinks(
             gameRootDir = gameRootDir,
             workshopContentDir = workshopContentDir,
             items = listOf(makeItem(111)),
@@ -447,7 +469,7 @@ class WorkshopManagerTest {
         val manualModsDir = File(gameRootDir, "game/mods").apply { mkdirs() }
         val winePrefix = File(tempDir, "wine").apply { mkdirs() }.absolutePath
 
-        WorkshopManager.configureModSymlinks(
+        workshopManager.configureModSymlinks(
             gameRootDir = gameRootDir,
             workshopContentDir = workshopContentDir,
             items = listOf(makeItem(111)),
@@ -470,7 +492,7 @@ class WorkshopManagerTest {
         addContent(111)
         val gameRootDir = makeRenPyGameRoot()
 
-        WorkshopManager.configureModSymlinks(
+        workshopManager.configureModSymlinks(
             gameRootDir = gameRootDir,
             workshopContentDir = workshopContentDir,
             items = listOf(makeItem(111)),
@@ -484,7 +506,7 @@ class WorkshopManagerTest {
 
     @Test
     fun getWorkshopContentDir_buildsCorrectPath() {
-        val dir = WorkshopManager.getWorkshopContentDir("/home/xuser/.wine", 480)
+        val dir = workshopManager.getWorkshopContentDir("/home/xuser/.wine", 480)
         val expected = File(
             "/home/xuser/.wine",
             "drive_c/Program Files (x86)/Steam/steamapps/workshop/content/480",
@@ -500,7 +522,7 @@ class WorkshopManagerTest {
         File(dir, "ugc_111.bin").writeText("data")
         val items = listOf(makeItem(111).copy(fileName = "my_mod.vpk"))
 
-        WorkshopManager.fixItemFileNames(items, workshopContentDir)
+        workshopManager.fixItemFileNames(items, workshopContentDir)
 
         assertFalse(File(dir, "ugc_111.bin").exists())
         assertTrue(File(dir, "my_mod.vpk").exists())
@@ -512,7 +534,7 @@ class WorkshopManagerTest {
         File(dir, "my_mod.vpk").writeText("data")
         val items = listOf(makeItem(111).copy(fileName = "my_mod.vpk"))
 
-        WorkshopManager.fixItemFileNames(items, workshopContentDir)
+        workshopManager.fixItemFileNames(items, workshopContentDir)
 
         assertTrue(File(dir, "my_mod.vpk").exists())
     }
@@ -523,7 +545,7 @@ class WorkshopManagerTest {
         File(dir, "ugc_111.bin").writeText("data")
         val items = listOf(makeItem(111).copy(fileName = ""))
 
-        WorkshopManager.fixItemFileNames(items, workshopContentDir)
+        workshopManager.fixItemFileNames(items, workshopContentDir)
 
         // File should remain untouched
         assertTrue(File(dir, "ugc_111.bin").exists())
@@ -536,7 +558,7 @@ class WorkshopManagerTest {
         File(dir, "file_b.bin").writeText("data")
         val items = listOf(makeItem(111).copy(fileName = "my_mod.vpk"))
 
-        WorkshopManager.fixItemFileNames(items, workshopContentDir)
+        workshopManager.fixItemFileNames(items, workshopContentDir)
 
         // Neither file should be renamed because there are multiple content files
         assertTrue(File(dir, "file_a.bin").exists())
@@ -551,7 +573,7 @@ class WorkshopManagerTest {
         File(dir, "ugc_111.bin").writeText("data")
         val items = listOf(makeItem(111).copy(fileName = "my_mod.vpk"))
 
-        WorkshopManager.fixItemFileNames(items, workshopContentDir)
+        workshopManager.fixItemFileNames(items, workshopContentDir)
 
         // .workshop_complete should not count as a content file
         assertTrue(File(dir, "my_mod.vpk").exists())
@@ -565,7 +587,7 @@ class WorkshopManagerTest {
         File(dir, "dragonborn.esp").writeText("TES4 data")
         val items = listOf(makeItem(111).copy(fileName = "dragonborn.ckm"))
 
-        WorkshopManager.fixItemFileNames(items, workshopContentDir)
+        workshopManager.fixItemFileNames(items, workshopContentDir)
 
         // Should NOT rename .esp back to .ckm
         assertTrue(File(dir, "dragonborn.esp").exists())
@@ -579,7 +601,7 @@ class WorkshopManagerTest {
         // Steam sometimes includes a path prefix in fileName
         val items = listOf(makeItem(111).copy(fileName = "mods/my_mod.vpk"))
 
-        WorkshopManager.fixItemFileNames(items, workshopContentDir)
+        workshopManager.fixItemFileNames(items, workshopContentDir)
 
         assertTrue(File(dir, "my_mod.vpk").exists())
     }
@@ -592,7 +614,7 @@ class WorkshopManagerTest {
         writeZipPayload(jarFile)
         writeZipPayload(groFile)
 
-        WorkshopManager.fixFileExtensions(workshopContentDir)
+        workshopManager.fixFileExtensions(workshopContentDir)
 
         assertTrue(jarFile.exists())
         assertTrue(groFile.exists())
@@ -606,7 +628,7 @@ class WorkshopManagerTest {
         val slayDir = File(workshopContentDir, "111").apply { mkdirs() }
         writeZipPayload(File(slayDir, "mod.jar.zip"))
 
-        WorkshopManager.runPostProcessing(
+        workshopManager.runPostProcessing(
             downloadedItems = null,
             allItems = emptyList(),
             workshopContentDir = workshopContentDir,
@@ -621,7 +643,7 @@ class WorkshopManagerTest {
         val seriousSamDir = File(workshopContentDir, "222").apply { mkdirs() }
         writeZipPayload(File(seriousSamDir, "mod.gro.zip"))
 
-        WorkshopManager.runPostProcessing(
+        workshopManager.runPostProcessing(
             downloadedItems = null,
             allItems = emptyList(),
             workshopContentDir = workshopContentDir,
@@ -641,7 +663,7 @@ class WorkshopManagerTest {
             val zipFile = File(itemDir, "payload.zip")
             writeZipPayload(zipFile)
 
-            WorkshopManager.extractZipMods(workshopContentDir)
+            workshopManager.extractZipMods(workshopContentDir)
 
             assertTrue(zipFile.exists())
             assertFalse(File(itemDir, "inside.txt").exists())

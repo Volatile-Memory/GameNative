@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CommunityConfigApplicationTest {
     private lateinit var context: Context
+    private lateinit var bestConfigService: BestConfigService
 
     private val config = Json.parseToJsonElement(
         """
@@ -81,6 +82,14 @@ class CommunityConfigApplicationTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
 
+        val prefsEntryPoint = PreferencesEntryPoint.get(context)
+        bestConfigService = BestConfigService(
+            context = context,
+            containerPreferences = prefsEntryPoint.containerPreferences(),
+            authPreferences = prefsEntryPoint.authPreferences(),
+            stringResolver = app.gamenative.core.appinfo.AndroidStringResolver(context),
+        )
+
         val workingDir = File(requireNotNull(System.getProperty("user.dir")))
         val manifestFile = listOf(
             File(workingDir, "manifest.json"),
@@ -97,8 +106,7 @@ class CommunityConfigApplicationTest {
         val sanitized = sanitizeCommunityConfig(config)
         assertEquals(allowedKeys, sanitized.keys)
 
-        val result = BestConfigService.parseConfigResult(
-            context = context,
+        val result = bestConfigService.parseConfigResult(
             configJson = sanitized,
             matchType = "fallback_match",
             applyKnownConfig = true,
@@ -168,8 +176,7 @@ class CommunityConfigApplicationTest {
     fun preserveModeIsOptInAndKnownConfigFilteringRemainsDefault() = runBlocking {
         val sanitized = sanitizeCommunityConfig(config)
 
-        val knownConfigResult = BestConfigService.parseConfigResult(
-            context = context,
+        val knownConfigResult = bestConfigService.parseConfigResult(
             configJson = sanitized,
             matchType = "fallback_match",
             applyKnownConfig = true,
@@ -181,8 +188,7 @@ class CommunityConfigApplicationTest {
         assertFalse(knownConfigResult.config.containsKey("dxwrapper"))
         assertFalse(knownConfigResult.config.containsKey("dxwrapperConfig"))
 
-        val communityResult = BestConfigService.parseConfigResult(
-            context = context,
+        val communityResult = bestConfigService.parseConfigResult(
             configJson = sanitized,
             matchType = "fallback_match",
             applyKnownConfig = true,

@@ -9,6 +9,7 @@ import app.gamenative.enums.LoginScreen
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
 import app.gamenative.preferences.GeneralPreferences
+import app.gamenative.service.SteamManager
 import app.gamenative.service.SteamService
 import app.gamenative.ui.data.UserLoginState
 import com.posthog.PostHog
@@ -28,6 +29,7 @@ import timber.log.Timber
 @HiltViewModel
 class UserLoginViewModel @Inject constructor(
     private val generalPreferences: GeneralPreferences,
+    private val steamManager: SteamManager,
 ) : ViewModel() {
     private val _loginState = MutableStateFlow(UserLoginState())
     val loginState: StateFlow<UserLoginState> = _loginState.asStateFlow()
@@ -245,7 +247,7 @@ class UserLoginViewModel @Inject constructor(
         PluviaApp.events.off<SteamEvent.QrAuthEnded, Unit>(onQrAuthEnded)
         PluviaApp.events.off<SteamEvent.LoggedOut, Unit>(onLoggedOut)
 
-        SteamService.stopLoginWithQr()
+        steamManager.stopLoginWithQr()
     }
 
     private fun showSnack(message: String) {
@@ -259,10 +261,10 @@ class UserLoginViewModel @Inject constructor(
             if (username.isEmpty() && password.isEmpty()) {
                 return@with
             }
-            SteamService.stopLoginWithQr()
+            steamManager.stopLoginWithQr()
 
             viewModelScope.launch {
-                SteamService.startLoginWithCredentials(
+                steamManager.startLoginWithCredentials(
                     username = username,
                     password = password,
                     rememberSession = rememberSession,
@@ -293,10 +295,10 @@ class UserLoginViewModel @Inject constructor(
 
         if (loginScreen == LoginScreen.QR) {
             viewModelScope.launch {
-                SteamService.startLoginWithQr()
+                steamManager.startLoginWithQr()
             }
         } else {
-            SteamService.stopLoginWithQr()
+            steamManager.stopLoginWithQr()
         }
     }
 
@@ -305,7 +307,7 @@ class UserLoginViewModel @Inject constructor(
             currentState.copy(isQrFailed = false, qrCode = null)
         }
         viewModelScope.launch {
-            SteamService.startLoginWithQr()
+            steamManager.startLoginWithQr()
         }
     }
 
@@ -338,7 +340,7 @@ class UserLoginViewModel @Inject constructor(
 
         with(_loginState.value) {
             viewModelScope.launch {
-                SteamService.startLoginWithCredentials(
+                steamManager.startLoginWithCredentials(
                     username = username,
                     password = password,
                     rememberSession = rememberSession,

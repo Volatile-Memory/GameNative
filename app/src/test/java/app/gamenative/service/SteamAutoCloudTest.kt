@@ -17,6 +17,7 @@ import app.gamenative.enums.PathType
 import app.gamenative.enums.ReleaseState
 import app.gamenative.enums.SaveLocation
 import app.gamenative.utils.Net
+import app.gamenative.preferences.DownloadPreferences
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
 import com.winlator.container.Container
@@ -68,6 +69,7 @@ class SteamAutoCloudTest {
     private lateinit var saveFilesDir: File
     private lateinit var db: PluviaDatabase
     private lateinit var mockSteamService: SteamService
+    private lateinit var mockSteamManager: SteamManager
     private lateinit var mockSteamCloud: SteamCloud
     private lateinit var mockParallelHttpClient: OkHttpClient
     private val testAppId = "STEAM_123456"
@@ -182,17 +184,26 @@ class SteamAutoCloudTest {
 
         // Pattern 1: Capture*.sav should match 0 files (none created)
 
-        // Mock SteamService
-        mockSteamService = mock<SteamService>()
-        whenever(mockSteamService.appDao).thenReturn(db.steamAppDao())
-        whenever(mockSteamService.fileChangeListsDao).thenReturn(db.appFileChangeListsDao())
-        whenever(mockSteamService.changeNumbersDao).thenReturn(db.appChangeNumbersDao())
-        whenever(mockSteamService.db).thenReturn(db)
-
         val mockSteamClient = mock<`in`.dragonbra.javasteam.steam.steamclient.SteamClient>()
         val mockSteamID = mock<`in`.dragonbra.javasteam.types.SteamID>()
-        whenever(mockSteamService.steamClient).thenReturn(mockSteamClient)
         whenever(mockSteamClient.steamID).thenReturn(mockSteamID)
+
+        // Mock SteamManager
+        mockSteamManager = mock<SteamManager>()
+        whenever(mockSteamManager.appDao).thenReturn(db.steamAppDao())
+        whenever(mockSteamManager.fileChangeListsDao).thenReturn(db.appFileChangeListsDao())
+        whenever(mockSteamManager.changeNumbersDao).thenReturn(db.appChangeNumbersDao())
+        whenever(mockSteamManager.db).thenReturn(db)
+        whenever(mockSteamManager.context).thenReturn(context)
+        whenever(mockSteamManager.steamClient).thenReturn(mockSteamClient)
+        val mockDownloadPreferences = mock<DownloadPreferences>()
+        whenever(mockDownloadPreferences.downloadSpeed).thenReturn(1)
+        whenever(mockSteamManager.downloadPreferences).thenReturn(mockDownloadPreferences)
+
+        // Mock SteamService
+        mockSteamService = mock<SteamService>()
+        whenever(mockSteamService.steamManager).thenReturn(mockSteamManager)
+
 
         // Set SteamService.instance using reflection
         try {
@@ -320,7 +331,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -581,7 +592,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -720,7 +731,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -854,7 +865,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = updatedApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -982,7 +993,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = updatedApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1127,7 +1138,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1253,7 +1264,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = danganApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1384,7 +1395,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = updatedApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1513,7 +1524,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = appUnderTest,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1620,7 +1631,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = appUnderTest,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1733,7 +1744,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = appUnderTest,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1840,7 +1851,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = appUnderTest,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -1956,7 +1967,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = updatedApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = prefixToPath,
@@ -2076,7 +2087,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2153,7 +2164,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2264,7 +2275,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2323,7 +2334,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2353,7 +2364,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2428,7 +2439,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2456,7 +2467,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2484,7 +2495,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2513,7 +2524,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.Local,
             prefixToPath = makePrefixToPath(),
@@ -2546,7 +2557,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2577,7 +2588,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2604,7 +2615,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2630,7 +2641,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2700,7 +2711,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.Remote,
             prefixToPath = makePrefixToPath(),
@@ -2770,7 +2781,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.Remote,
             prefixToPath = makePrefixToPath(),
@@ -2847,7 +2858,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -2909,7 +2920,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -3017,7 +3028,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -3066,7 +3077,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -3102,7 +3113,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -3140,7 +3151,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.None,
             prefixToPath = makePrefixToPath(),
@@ -3187,7 +3198,7 @@ class SteamAutoCloudTest {
         val result = SteamAutoCloud.syncUserFiles(
             appInfo = testApp,
             clientId = clientId,
-            steamInstance = mockSteamService,
+            steamManager = mockSteamManager,
             steamCloud = mockSteamCloud,
             preferredSave = SaveLocation.Local,
             prefixToPath = makePrefixToPath(),

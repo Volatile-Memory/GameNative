@@ -5,6 +5,7 @@ import com.winlator.container.Container
 import com.winlator.core.WineRegistryEditor
 import java.io.File
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,9 +24,10 @@ import timber.log.Timber
  */
 @Singleton
 class EpicOverlayManager @Inject constructor(
-    private val epicManager: EpicManager,
+    private val epicManagerProvider: Provider<EpicManager>,
     private val epicDownloadManager: EpicDownloadManager,
 ) {
+    private val epicManager get() = epicManagerProvider.get()
 
     companion object {
         // ── EOS Overlay Epic app identifiers ─────────────────────────────────────

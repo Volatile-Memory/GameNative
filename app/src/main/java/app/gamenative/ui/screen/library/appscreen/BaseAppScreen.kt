@@ -45,6 +45,7 @@ import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.screen.library.components.toggleFavorite
 import app.gamenative.ui.util.ContainerConfigTransfer
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.utils.BestConfigService
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.DiagnosticsLog
@@ -87,8 +88,7 @@ internal suspend fun installMissingComponentsForConfig(
     matchedGpu: String = "",
     preserveConfigValues: Boolean = false,
 ): Boolean {
-    val missingRequests = BestConfigService.resolveMissingManifestInstallRequests(
-        context = context,
+    val missingRequests = context.appUtilsEntryPoint().bestConfigService().resolveMissingManifestInstallRequests(
         configJson = configJson,
         matchType = matchType,
         matchedGpu = matchedGpu,
@@ -868,7 +868,8 @@ abstract class BaseAppScreen {
             val gameName = ContainerUtils.resolveGameName(libraryItem.appId)
             val gpuName = GPUInformation.getRenderer(context)
 
-            val bestConfig = BestConfigService.fetchBestConfig(
+            val bestConfigService = context.appUtilsEntryPoint().bestConfigService()
+            val bestConfig = bestConfigService.fetchBestConfig(
                 gameName = gameName,
                 gpuName = gpuName,
                 gameStore = libraryItem.gameSource.name,
@@ -895,8 +896,7 @@ abstract class BaseAppScreen {
             val configJson = bestConfig.bestConfig
             val matchType = bestConfig.matchType
 
-            val parsedResult = BestConfigService.parseConfigResult(
-                context = context,
+            val parsedResult = bestConfigService.parseConfigResult(
                 configJson = configJson,
                 matchType = matchType,
                 applyKnownConfig = true,
@@ -911,8 +911,10 @@ abstract class BaseAppScreen {
                     // "apply anyway" — re-parse with defaults replacing missing components
                     uiScope.launch(Dispatchers.IO) {
                         try {
-                            val forced = BestConfigService.parseConfigToContainerData(
-                                context, configJson, matchType, true,
+                            val forced = bestConfigService.parseConfigToContainerData(
+                                configJson = configJson,
+                                matchType = matchType,
+                                applyKnownConfig = true,
                                 storeMatch = bestConfig.matchedStore.equals(libraryItem.gameSource.name, ignoreCase = true),
                                 forceApply = true,
                                 matchedGpu = bestConfig.matchedGpu,
@@ -995,8 +997,8 @@ abstract class BaseAppScreen {
             )
             if (!installsOk) return false
 
-            val parsedResult = BestConfigService.parseConfigResult(
-                context = context,
+            val bestConfigService = context.appUtilsEntryPoint().bestConfigService()
+            val parsedResult = bestConfigService.parseConfigResult(
                 configJson = safeConfig,
                 matchType = matchType,
                 applyKnownConfig = true,
@@ -1012,8 +1014,7 @@ abstract class BaseAppScreen {
                     showMissingComponentsDialog(appId, missingComponents) {
                         uiScope.launch(Dispatchers.IO) {
                             try {
-                                val forced = BestConfigService.parseConfigToContainerData(
-                                    context = context,
+                                val forced = bestConfigService.parseConfigToContainerData(
                                     configJson = safeConfig,
                                     matchType = matchType,
                                     applyKnownConfig = true,

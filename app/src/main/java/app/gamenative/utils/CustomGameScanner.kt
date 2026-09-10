@@ -19,14 +19,14 @@ import app.gamenative.preferences.ContainerPreferences
 import app.gamenative.preferences.DownloadPreferences
 import app.gamenative.preferences.LibraryPreferences
 import app.gamenative.service.DownloadService
-import app.gamenative.service.SteamService
-import app.gamenative.service.SteamService.Companion.INVALID_APP_ID
-import app.gamenative.service.SteamService.Companion.getMainAppDepots
+import app.gamenative.service.SteamManager
+import app.gamenative.service.getMainAppDepots
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.math.abs
 import kotlinx.coroutines.launch
@@ -44,6 +44,7 @@ class CustomGameScanner @Inject constructor(
     private val downloadPreferences: DownloadPreferences,
     private val libraryPreferences: LibraryPreferences,
     private val containerPreferences: ContainerPreferences,
+    private val steamManagerProvider: Provider<SteamManager>,
 ) {
 
     // Default root path for Custom Games. Always use the app's external storage sandbox
@@ -598,21 +599,22 @@ class CustomGameScanner @Inject constructor(
             return null
         }
 
-        if (SteamService.instance != null && libraryPreferences.importCustomGameAsSteamGame) {
-            val steamApps = SteamService.findSteamAppWithInstallDir(dirName = folder.name)
+        val steamManager = steamManagerProvider.get()
+        if (steamManager.isLoggedIn && libraryPreferences.importCustomGameAsSteamGame) {
+            val steamApps = steamManager.findSteamAppWithInstallDir(dirName = folder.name)
             if (steamApps?.size == 1) {
                 val steamApp = steamApps[0]
-                if (SteamService.isAppLicensed(steamApp.packageId)) {
-                    if (SteamService.getInstalledApp(steamApp.id) == null) {
+                if (steamManager.isAppLicensed(steamApp.packageId)) {
+                    if (steamManager.getInstalledApp(steamApp.id) == null) {
                         val preferredLanguage = containerPreferences.containerLanguage
-                        val mainDepots = getMainAppDepots(steamApp.id, preferredLanguage)
+                        val mainDepots = steamManager.getMainAppDepots(steamApp.id, preferredLanguage)
                         val mainAppDepots = mainDepots.filter { (_, depot) ->
-                            depot.dlcAppId == INVALID_APP_ID
+                            depot.dlcAppId == SteamManager.INVALID_APP_ID
                         }
                         val mainAppDepotIds = mainAppDepots.keys.sorted()
 
                         runBlocking {
-                            SteamService.instance?.appInfoDao?.insert(
+                            steamManager.appInfoDao.insert(
                                 AppInfo(
                                     steamApp.id,
                                     isDownloaded = true,

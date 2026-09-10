@@ -12,7 +12,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import app.gamenative.preferences.GeneralPreferences
-import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import org.json.JSONObject
 import timber.log.Timber
@@ -26,7 +25,8 @@ class AchievementWatcher(
     private val configDirectory: String?,
     context: Context
 ) {
-    private val generalPreferences: GeneralPreferences = PreferencesEntryPoint.get(context).generalPreferences()
+    private val steamManager: SteamManager = app.gamenative.di.AppUtilsEntryPoint.get(context).steamManager()
+    private val generalPreferences: GeneralPreferences = steamManager.generalPreferences
     private val observers = mutableListOf<FileObserver>()
     private val notifiedNames = mutableSetOf<String>()
     private val uploadedNames = mutableSetOf<String>()
@@ -150,19 +150,19 @@ class AchievementWatcher(
             return
         }
 
-        if (!SteamService.isConnected) {
+        if (!steamManager.isConnected) {
             Timber.tag("achievements").w("Not connected to Steam, skipping real-time achievement upload for appId=$appId")
-            SteamService.instance?.addPendingSyncApp(appId)
+            steamManager.addPendingSyncApp(appId)
             return
         }
 
         // Get unlocked and stats
-        val (allUnlocked, gseStatsDir) = SteamService.collectGseUnlocksAndStats(watchDirs)
+        val (allUnlocked, gseStatsDir) = steamManager.collectGseUnlocksAndStats(watchDirs)
 
         val newToUpload = allUnlocked - uploadedNames
 
         Timber.tag("achievements").d("Real-time uploading ${newToUpload.size} new achievements (${allUnlocked.size} total) for appId=$appId")
-        val result = SteamService.storeAchievementUnlocks(appId, configDirectory, allUnlocked, gseStatsDir ?: watchDirs.first().resolve("stats"))
+        val result = steamManager.storeAchievementUnlocks(appId, configDirectory, allUnlocked, gseStatsDir ?: watchDirs.first().resolve("stats"))
         result.onSuccess {
             uploadedNames.addAll(allUnlocked)
             Timber.tag("achievements").i("Real-time achievement upload succeeded for appId=$appId")

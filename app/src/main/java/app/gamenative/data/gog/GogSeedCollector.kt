@@ -7,7 +7,6 @@ import app.gamenative.db.dao.EpicGameDao
 import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.LibraryPlayHistoryDao
 import app.gamenative.preferences.preferencesEntryPoint
-import app.gamenative.service.SteamService
 import app.gamenative.di.appUtilsEntryPoint
 import kotlinx.coroutines.flow.first
 
@@ -27,9 +26,10 @@ object GogSeedCollector {
         val refs = mutableListOf<OwnedGameRef>()
         val history = libraryPlayHistoryDao.getAll().first().associate { it.appId to it.lastPlayed }
 
-        val steamId = context.preferencesEntryPoint().authPreferences().steamUserSteamId64
+        val steamManager = context.appUtilsEntryPoint().steamManager()
+        val steamId = steamManager.authPreferences.steamUserSteamId64
         if (steamId != 0L) {
-            runCatching { SteamService.getOwnedGames(steamId) }.getOrNull()?.forEach { g ->
+            runCatching { steamManager.getOwnedGames(steamId) }.getOrNull()?.forEach { g ->
                 val icon = g.imgIconUrl.takeIf { it.isNotBlank() }
                     ?.let { "${Constants.Library.ICON_URL}${g.appId}/$it.jpg" }
                 refs += OwnedGameRef(

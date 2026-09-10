@@ -3,6 +3,7 @@ package app.gamenative.service.amazon
 import android.content.Context
 import app.gamenative.data.AmazonGame
 import app.gamenative.data.DownloadInfo
+import app.gamenative.db.dao.AmazonGameDao
 import app.gamenative.enums.Marker
 import app.gamenative.utils.MarkerUtils
 import java.io.File
@@ -23,7 +24,7 @@ import timber.log.Timber
 /** Handles native downloading of Amazon games. */
 @Singleton
 class AmazonDownloadManager @Inject constructor(
-    private val amazonManager: AmazonManager,
+    private val amazonGameDao: AmazonGameDao,
 ) {
 
     private val okHttpClient = OkHttpClient.Builder()
@@ -64,7 +65,7 @@ class AmazonDownloadManager @Inject constructor(
                 cleanupOnFailure()
                 return@withContext Result.failure(Exception("Game '${game.title}' has no entitlement ID — re-sync library first"))
             }
-            val bearerToken = amazonManager.getBearerToken()
+            val bearerToken = AmazonAuthManager.getStoredCredentials(context).getOrNull()?.accessToken
             if (bearerToken == null) {
                 cleanupOnFailure()
                 return@withContext Result.failure(Exception("No Amazon credentials stored"))
@@ -162,7 +163,7 @@ class AmazonDownloadManager @Inject constructor(
 
             // ── 7. Persist installed state ───────────────────────────────────
             Timber.tag(TAG).i("Persisting install: productId=$productId, version=${spec.versionId}")
-            amazonManager.markInstalled(productId, installPath, manifest.totalInstallSize, spec.versionId)
+            amazonGameDao.markAsInstalled(productId, installPath, manifest.totalInstallSize, spec.versionId)
 
             MarkerUtils.removeMarker(installPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)
             MarkerUtils.addMarker(installPath, Marker.DOWNLOAD_COMPLETE_MARKER)

@@ -21,7 +21,9 @@ import app.gamenative.preferences.GeneralPreferences
 import app.gamenative.ui.enums.Orientation
 import java.util.EnumSet
 import app.gamenative.service.ActiveGameRegistry
+import app.gamenative.service.SteamManager
 import app.gamenative.service.SteamService
+import app.gamenative.service.closeApp
 import app.gamenative.service.amazon.AmazonService
 import app.gamenative.service.epic.EpicCloudSavesManager
 import app.gamenative.service.epic.EpicService
@@ -64,6 +66,7 @@ class MainViewModel @Inject constructor(
     private val libraryPlayHistoryDao: LibraryPlayHistoryDao,
     private val generalPreferences: GeneralPreferences,
     private val customGameScanner: CustomGameScanner,
+    private val steamManager: SteamManager,
 ) : ViewModel() {
 
     companion object {
@@ -721,8 +724,8 @@ class MainViewModel @Inject constructor(
                 val container = withContext(Dispatchers.IO) {
                     ContainerUtils.getContainer(context, appId)
                 }
-                SteamService.closeApp(context, gameId, isOffline.value) { prefix ->
-                    PathType.from(prefix).toAbsPath(container, gameId, SteamService.userSteamId!!.accountID)
+                steamManager.closeApp(context, gameId, isOffline.value) { prefix ->
+                    PathType.from(prefix).toAbsPath(container, gameId, steamManager.userSteamId!!.accountID)
                 }.await()
             } catch (e: CancellationException) {
                 throw e
@@ -748,12 +751,12 @@ class MainViewModel @Inject constructor(
 
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
 
-            SteamService.getAppInfoOf(gameId)?.let { appInfo ->
+            steamManager.getAppInfoOf(gameId)?.let { appInfo ->
                 if (ActiveGameRegistry.get()?.appId == gameId) {
                     return@launch
                 }
 
-                val matchesLaunchConfig = SteamService.getWindowsLaunchInfos(gameId).any {
+                val matchesLaunchConfig = steamManager.getWindowsLaunchInfos(gameId).any {
                     val gameExe = Paths.get(it.executable.replace('\\', '/')).name.lowercase()
                     val windowExe = window.className.lowercase()
                     gameExe == windowExe

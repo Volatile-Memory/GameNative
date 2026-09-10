@@ -78,6 +78,7 @@ import app.gamenative.ui.component.topbar.BackButton
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.utils.StorageUtils
 import app.gamenative.workshop.WorkshopItem
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.workshop.WorkshopManager
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
@@ -104,6 +105,7 @@ fun WorkshopManagerDialog(
     if (!visible) return
 
     val context = LocalContext.current
+    val workshopManager = remember(context) { context.appUtilsEntryPoint().workshopManager() }
     val scrollState = rememberScrollState()
     val displayInfo = onGetDisplayInfo(context)
     val gameId = displayInfo.gameId
@@ -127,7 +129,7 @@ fun WorkshopManagerDialog(
         val steamId = SteamService.userSteamId
         if (steamClient != null && steamId != null) {
             val result = withContext(Dispatchers.IO) {
-                WorkshopManager.getSubscribedItems(gameId, steamClient, steamId)
+                workshopManager.getSubscribedItems(gameId, steamClient, steamId)
             }
             if (result.succeeded) {
                 workshopItems.addAll(result.items.sortedBy { it.title.lowercase() })

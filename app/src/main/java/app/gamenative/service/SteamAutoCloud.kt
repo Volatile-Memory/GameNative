@@ -1,7 +1,6 @@
 package app.gamenative.service
 
 import androidx.room.withTransaction
-import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.PostSyncInfo
 import app.gamenative.data.SaveFilePattern
@@ -14,8 +13,6 @@ import app.gamenative.db.dao.SteamFileHashCacheDao
 import app.gamenative.enums.PathType
 import app.gamenative.enums.SaveLocation
 import app.gamenative.enums.SyncResult
-import app.gamenative.service.SteamService.Companion.FileChanges
-import app.gamenative.service.SteamService.Companion.getAppDirPath
 import app.gamenative.utils.CURRENT_UFS_PARSE_VERSION
 import app.gamenative.utils.FileUtils
 import app.gamenative.utils.Net
@@ -145,7 +142,7 @@ object SteamAutoCloud {
     fun syncUserFiles(
         appInfo: SteamApp,
         clientId: Long,
-        steamInstance: SteamService,
+        steamManager: SteamManager,
         steamCloud: SteamCloud,
         preferredSave: SaveLocation = SaveLocation.None,
         parentScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
@@ -266,7 +263,7 @@ object SteamAutoCloud {
 
         val hashCacheHits = AtomicInteger(0)
         val hashCacheMisses = AtomicInteger(0)
-        val hashCacheDao = steamInstance.db.steamFileHashCacheDao()
+        val hashCacheDao = steamManager.db.steamFileHashCacheDao()
 
         val getFullFilePath: (AppFileInfo, AppFileChangeList) -> Path = getFullFilePath@{ file, fileList ->
             val gameInstallPrefix = "%${PathType.GameInstall.name}%"
@@ -493,7 +490,7 @@ object SteamAutoCloud {
                 val filesDownloaded = AtomicInteger(0)
                 val bytesDownloaded = AtomicLong(0L)
                 val totalFiles = filesToDownload.size
-                val parallelism = PreferencesEntryPoint.get(steamInstance).downloadPreferences().downloadSpeed.coerceAtLeast(1)
+                val parallelism = steamManager.downloadPreferences.downloadSpeed.coerceAtLeast(1)
                 // A new client (and its Dispatcher thread pool) is created intentionally per sync,
                 // since cloud saves are downloaded at most once per game launch.
                 val downloadHttpClient = Net.httpForParallelDownloads(parallelism)
@@ -505,7 +502,7 @@ object SteamAutoCloud {
                 val downloadedRawBytes = AtomicLong(0L)
                 val lastReportedPercent = AtomicInteger(-1)
                 val progressMessage: (Int) -> String = { finishedFiles ->
-                    steamInstance.getString(
+                    steamManager.context.getString(
                         R.string.steam_cloud_sync_downloading_save_files,
                         finishedFiles,
                         totalFiles,
@@ -582,11 +579,11 @@ object SteamAutoCloud {
 
                 val uploadBatchResponse = steamCloud.beginAppUploadBatch(
                     appId = appInfo.id,
-                    machineName = SteamUtils.getMachineName(steamInstance),
+                    machineName = SteamUtils.getMachineName(steamManager.context),
                     clientId = clientId,
                     filesToDelete = filesToDelete,
                     filesToUpload = filesToUpload.map { it.first },
-                    appBuildId = appInfo.branches[SteamService.getInstalledApp(appInfo.id)?.branch ?: "public"]?.buildId ?: 0,
+                    appBuildId = appInfo.branches[steamManager.getInstalledApp(appInfo.id)?.branch ?: "public"]?.buildId ?: 0,
                 ).await()
 
                 var uploadBatchSuccess = true
@@ -696,11 +693,11 @@ object SteamAutoCloud {
                                 .addHeader("user-agent", "Valve/Steam HTTP Client 1.0")
                                 .build()
 
-                            val httpClient = steamInstance.steamClient!!.configuration.httpClient
+                            val httpClient = steamManager.steamClient!!.configuration.httpClient
 
                             Timber.i("Sending request to ${request.url} using\n$request")
 
-                            withTimeout(SteamService.requestTimeout) {
+                            withTimeout(SteamManager.requestTimeout) {
                                 val response = httpClient.newCall(request).execute()
 
                                 if (!response.isSuccessful) {
@@ -799,9 +796,9 @@ object SteamAutoCloud {
         var lastCloudAppChangeNumber = -1L
 
         microsecTotal = measureTime {
-            val localAppChangeNumber = overrideLocalChangeNumber ?: steamInstance.changeNumbersDao.getByAppId(appInfo.id)?.changeNumber ?: -1
+            val localAppChangeNumber = overrideLocalChangeNumber ?: steamManager.changeNumbersDao.getByAppId(appInfo.id)?.changeNumber ?: -1
 
-            val cachedFileList = steamInstance.fileChangeListsDao.getByAppId(appInfo.id)
+            val cachedFileList = steamManager.fileChangeListsDao.getByAppId(appInfo.id)
             val cacheIsAbsentOrEmpty = cachedFileList == null || cachedFileList.userFileInfo.isEmpty()
             val changeNumber = if (!cacheIsAbsentOrEmpty && localAppChangeNumber >= 0) localAppChangeNumber else 0L
             val appFileListChange = steamCloud.getAppFileListChange(appInfo.id, changeNumber).await()
@@ -878,7 +875,7 @@ object SteamAutoCloud {
                         return@async PostSyncInfo(syncResult)
                     }
 
-                    with(steamInstance) {
+                    with(steamManager) {
                         db.withTransaction {
                             fileChangeListsDao.insert(appInfo.id, updatedLocalFiles.map { it.value }.flatten())
                             changeNumbersDao.insert(appInfo.id, cloudAppChangeNumber)
@@ -893,7 +890,7 @@ object SteamAutoCloud {
                 parentScope.async {
                     Timber.i("Uploading local user files")
 
-                    val fileChanges = steamInstance.fileChangeListsDao.getByAppId(appInfo.id).let {
+                    val fileChanges = steamManager.fileChangeListsDao.getByAppId(appInfo.id).let {
                         val result = getFilesDiff(allLocalUserFiles, it?.userFileInfo ?: emptyList())
 
                         result.second
@@ -914,7 +911,7 @@ object SteamAutoCloud {
 
                     if (uploadResult.uploadBatchSuccess) {
                         lastCloudAppChangeNumber = uploadResult.appChangeNumber
-                        with(steamInstance) {
+                        with(steamManager) {
                             db.withTransaction {
                                 fileChangeListsDao.insert(appInfo.id, allLocalUserFiles)
                                 changeNumbersDao.insert(appInfo.id, uploadResult.appChangeNumber)
@@ -952,7 +949,7 @@ object SteamAutoCloud {
                         val downloadInfo = downloadFiles(neverSynced, appFileListChange, parentScope).await()
                         filesDownloaded += downloadInfo.filesDownloaded
                         bytesDownloaded += downloadInfo.bytesDownloaded
-                        steamInstance.fileChangeListsDao.insert(appInfo.id, getLocalUserFilesAsPrefixMap().values.flatten())
+                        steamManager.fileChangeListsDao.insert(appInfo.id, getLocalUserFilesAsPrefixMap().values.flatten())
                         downloadInfo.filesDownloaded
                     }
                 }
@@ -968,7 +965,7 @@ object SteamAutoCloud {
                     var hasLocalChanges: Boolean
 
                     microsecAcPrepUserFiles = measureTime {
-                        hasLocalChanges = steamInstance.fileChangeListsDao.getByAppId(appInfo.id)?.let {
+                        hasLocalChanges = steamManager.fileChangeListsDao.getByAppId(appInfo.id)?.let {
                             getFilesDiff(allLocalUserFiles, it.userFileInfo).first
                         } == true
                     }.inWholeMicroseconds
@@ -1000,7 +997,7 @@ object SteamAutoCloud {
 
                         if (localMatchesRemote) {
                             Timber.i("Cache absent but local matches remote — rehydrating cache silently")
-                            with(steamInstance) {
+                            with(steamManager) {
                                 db.withTransaction {
                                     fileChangeListsDao.insert(appInfo.id, allLocalUserFiles)
                                     changeNumbersDao.insert(appInfo.id, cloudAppChangeNumber)
@@ -1207,7 +1204,7 @@ object SteamAutoCloud {
             .build()
 
         val response = try {
-            withTimeout(SteamService.requestTimeout) {
+            withTimeout(SteamManager.requestTimeout) {
                 httpClient.newCall(request).execute()
             }
         } catch (e: TimeoutCancellationException) {
@@ -1275,7 +1272,7 @@ object SteamAutoCloud {
                 }
             }
 
-            val downloaded = withTimeout(SteamService.responseTimeout) {
+            val downloaded = withTimeout(SteamManager.responseTimeout) {
                 if (fileDownloadInfo.fileSize != fileDownloadInfo.rawFileSize) {
                     response.body?.byteStream()?.use { inputStream ->
                         ZipInputStream(inputStream).use { zipInput ->

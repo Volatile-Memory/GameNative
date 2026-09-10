@@ -29,13 +29,14 @@ object GogScriptInterpreterDependency : LaunchDependency {
         gameId: Int,
     ) {
         if (isRedistInstalled(gameId.toString())) return
+        val gogManager = GOGService.getInstance()?.gogManager
+            ?: runCatching { app.gamenative.di.AppUtilsEntryPoint.get(context).gogManager() }.getOrNull()
         val downloadManager = GOGService.getInstance()?.gogDownloadManager
-            ?: run {
-                Timber.tag("GOG").w("GOG service not available for redist download")
-                return
-            }
+            ?: gogManager?.gogDownloadManager
+            ?: return
         Timber.tag("GOG").d("Downloading script interpreter (ISI) for GOG game")
         val installPath = GOGService.getInstallPath(gameId.toString())
+            ?: gogManager?.getInstallPath(gameId.toString())
         if (installPath == null) {
             Timber.tag("GOG").w("No game install path for GOG redist, skipping script interpreter")
             return

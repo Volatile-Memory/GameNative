@@ -13,15 +13,19 @@ import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnified
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.types.SteamID
 import android.content.Context
+import app.gamenative.core.storage.AppStoragePaths
 import app.gamenative.preferences.ContainerPreferences
 import app.gamenative.preferences.DownloadPreferences
-import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import app.gamenative.data.DownloadInfo
 import app.gamenative.data.GameSource
-import app.gamenative.service.SteamService
+import app.gamenative.service.SteamManager
 import app.gamenative.utils.ContainerUtils
 import com.winlator.xenvironment.ImageFs
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Provider
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -71,28 +75,33 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * gbe_fork discovers mods by scanning numeric-named subfolders under workshop/content/<appId>/.
  */
-object WorkshopManager {
+@Singleton
+class WorkshopManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val downloadPreferences: DownloadPreferences,
+    private val containerPreferences: ContainerPreferences,
+    private val appStoragePaths: AppStoragePaths,
+    private val steamManagerProvider: Provider<SteamManager>,
+) {
 
-    private const val TAG = "WorkshopManager"
-    private val downloadPreferences: DownloadPreferences?
-        get() = runCatching { SteamService.instance?.let { PreferencesEntryPoint.get(it).downloadPreferences() } }.getOrNull()
-    private val containerPreferences: ContainerPreferences?
-        get() = runCatching { SteamService.instance?.let { PreferencesEntryPoint.get(it).containerPreferences() } }.getOrNull()
-    private const val RAIN_WORLD_APP_ID = 312520
-    private const val RAIN_WORLD_MODS_PATH = "RainWorld_Data/StreamingAssets/mods"
-    private const val RAIN_WORLD_ENABLED_MODS_PATH = "RainWorld_Data/StreamingAssets/enabledMods.txt"
-    private const val ONI_APP_ID = 457140
-    private const val YOMI_HUSTLE_APP_ID = 2212330
-    private const val MAX_PAGES = 50
-    private const val PAGE_SIZE = 100
-    private var workshopTypesPatched = false
-
-    /**
-     * Games whose own mod system reads .zip files directly from workshop
-     * item directories. Our extractZipMods skips these to avoid deleting
-     * the archive before the game can process it.
-     */
-    private const val SLAY_THE_SPIRE_HEADLESS_LAUNCHER_JAR_BASE64 = "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"
+    companion object {
+        private const val TAG = "WorkshopManager"
+        @Volatile
+        private var workshopTypesPatched = false
+        private const val RAIN_WORLD_APP_ID = 312520
+        private const val RAIN_WORLD_MODS_PATH = "RainWorld_Data/StreamingAssets/mods"
+        private const val RAIN_WORLD_ENABLED_MODS_PATH = "RainWorld_Data/StreamingAssets/enabledMods.txt"
+        private const val ONI_APP_ID = 457140
+        private const val YOMI_HUSTLE_APP_ID = 2212330
+        private const val MAX_PAGES = 50
+        private const val PAGE_SIZE = 100
+        private const val COMPLETE_MARKER = ".workshop_complete"
+        private const val MIN_SIZE_VALIDATION_BYTES = 8L * 1024L * 1024L
+        private const val SUSPICIOUS_SIZE_RATIO_DIVISOR = 20L
+        private const val STRATEGY_CACHE_VERSION = 15
+        private const val WORKSHOP_UPDATE_THRESHOLD = 100L * 1024 * 1024L // 100 MB
+        private const val SLAY_THE_SPIRE_HEADLESS_LAUNCHER_JAR_BASE64 = "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"
+    }
     private val SKIP_ZIP_EXTRACTION_APP_IDS = setOf(
         1942280, // Brotato
         SlayTheSpireModTheSpireCompatibility.APP_ID,  // Slay the Spire - Workshop items include Java/JAR payloads
@@ -295,10 +304,6 @@ object WorkshopManager {
             Timber.tag(TAG).i("Cleaned up $removedCount unsubscribed workshop items")
         }
     }
-
-    private const val COMPLETE_MARKER = ".workshop_complete"
-    private const val MIN_SIZE_VALIDATION_BYTES = 8L * 1024L * 1024L
-    private const val SUSPICIOUS_SIZE_RATIO_DIVISOR = 20L
 
     private fun needsYomiWorkshopZipRestore(item: WorkshopItem, itemDir: File): Boolean {
         return item.appId == YOMI_HUSTLE_APP_ID &&
@@ -908,7 +913,7 @@ object WorkshopManager {
         val completedCount = AtomicInteger(0)
 
         // Concurrent download limit based on speed setting
-        val concurrentLimit = when (downloadPreferences?.downloadSpeed ?: 24) {
+        val concurrentLimit = when (downloadPreferences.downloadSpeed) {
             8 -> 1
             16 -> 2
             24 -> 3
@@ -1193,7 +1198,7 @@ object WorkshopManager {
     private fun computeDownloadThreads(): Pair<Int, Int> {
         var downloadRatio = 1.5
         var decompressRatio = 0.5
-        val speed = downloadPreferences?.downloadSpeed ?: 24
+        val speed = downloadPreferences.downloadSpeed
         when (speed) {
             8 -> { downloadRatio = 0.6; decompressRatio = 0.2 }
             16 -> { downloadRatio = 1.2; decompressRatio = 0.4 }
@@ -1370,9 +1375,8 @@ object WorkshopManager {
      * of which container is currently active (the `xuser` symlink can
      * point to any game's container).
      */
-    private fun getContainerWinePrefix(context: Context, appId: Int): String {
-        val imageFs = ImageFs.find(context)
-        val homeDir = File(imageFs.rootDir, "home")
+    private fun getContainerWinePrefix(appId: Int): String {
+        val homeDir = File(appStoragePaths.imageFsDir.toFile(), "home")
         val containerDir = File(homeDir, "${ImageFs.USER}-STEAM_$appId")
         return File(containerDir, ".wine").absolutePath
     }
@@ -1381,20 +1385,18 @@ object WorkshopManager {
      * Deletes all downloaded workshop mods for the given container and
      * cleans up any symlinks/copies installed into the game tree.
      *
-     * @param context Android context for resolving the wine prefix
      * @param containerId The container ID string (e.g. "STEAM_123456")
      * @param gameRootDir Optional game install dir; when provided, gbe_fork
      *   mods symlinks and strategy-detected entries are cleaned up too.
      * @param gameName Optional game name for strategy detection.
      */
     fun deleteWorkshopMods(
-        context: Context,
         containerId: String,
         gameRootDir: File? = null,
         gameName: String = "",
     ) {
         val gameId = ContainerUtils.extractGameIdFromContainerId(containerId)
-        val winePrefix = getContainerWinePrefix(context, gameId)
+        val winePrefix = getContainerWinePrefix(gameId)
         val workshopDir = getWorkshopContentDir(winePrefix, gameId)
 
         // Clean up installed mod entries (symlinks/copies) in the game tree
@@ -1417,11 +1419,12 @@ object WorkshopManager {
         }
     }
 
-    fun cleanupDisabledWorkshopArtifactsForApp(context: Context, appId: Int) {
-        val winePrefix = getContainerWinePrefix(context, appId)
+    fun cleanupDisabledWorkshopArtifactsForApp(appId: Int) {
+        val winePrefix = getContainerWinePrefix(appId)
         val workshopDir = getWorkshopContentDir(winePrefix, appId)
-        val gameRootDir = File(SteamService.getAppDirPath(appId))
-        val gameName = SteamService.getAppInfoOf(appId)?.name ?: ""
+        val steamManager = steamManagerProvider.get()
+        val gameRootDir = File(steamManager.getAppDirPath(appId))
+        val gameName = steamManager.getAppInfoOf(appId)?.name ?: ""
 
         cleanupInstalledModEntries(gameRootDir, workshopDir, winePrefix, gameName)
         cleanupGameTreeWorkshopSymlinks(gameRootDir, appId)
@@ -2434,9 +2437,6 @@ object WorkshopManager {
 
     // ── Strategy cache ────────────────────────────────────────────────────────
 
-    /** Bump when detection logic changes to invalidate all cached strategies. */
-    private const val STRATEGY_CACHE_VERSION = 15
-
     private fun strategyCacheFile(gameRootDir: File): File =
         File(gameRootDir, ".gamenative_mod_strategy.json")
 
@@ -2586,7 +2586,7 @@ object WorkshopManager {
         gameName: String = "",
         workshopModPath: String = "",
         compatibilityOverride: WorkshopCompatibilityOverride? = null,
-        bionicSteam: Boolean = containerPreferences?.launchBionicSteam ?: false,
+        bionicSteam: Boolean = containerPreferences.launchBionicSteam,
     ) {
         val appId = workshopContentDir.name.toIntOrNull() ?: -1
         val isSlayTheSpire = appId == SlayTheSpireModTheSpireCompatibility.APP_ID
@@ -4015,7 +4015,6 @@ object WorkshopManager {
             }
 
     suspend fun configureLocalWorkshopContentForEnabledIds(
-        context: Context,
         appId: Int,
         enabledIds: Set<Long>,
     ): Boolean {
@@ -4023,11 +4022,10 @@ object WorkshopManager {
         val isOni = appId == ONI_APP_ID
         if (enabledIds.isEmpty()) {
             if (isSlayTheSpire) {
-                cleanupDisabledWorkshopArtifactsForApp(context, appId)
+                cleanupDisabledWorkshopArtifactsForApp(appId)
             } else if (isOni) {
-                val winePrefix = getContainerWinePrefix(context, appId)
+                val winePrefix = getContainerWinePrefix(appId)
                 configureSymlinksForApp(
-                    context,
                     appId,
                     emptyList(),
                     winePrefix,
@@ -4037,21 +4035,21 @@ object WorkshopManager {
             return false
         }
 
-        val winePrefix = getContainerWinePrefix(context, appId)
+        val winePrefix = getContainerWinePrefix(appId)
         val workshopContentDir = getWorkshopContentDir(winePrefix, appId)
         val items = localWorkshopItemsForEnabledIds(appId, enabledIds, workshopContentDir)
         if (items.isEmpty()) {
             Timber.tag(TAG).w("No local Workshop payloads found for appId=$appId")
             if (isSlayTheSpire) {
-                cleanupDisabledWorkshopArtifactsForApp(context, appId)
+                cleanupDisabledWorkshopArtifactsForApp(appId)
             } else if (isOni) {
-                configureSymlinksForApp(context, appId, emptyList(), winePrefix, workshopContentDir)
+                configureSymlinksForApp(appId, emptyList(), winePrefix, workshopContentDir)
             }
             return false
         }
 
         runPostProcessing(null, items, workshopContentDir)
-        configureSymlinksForApp(context, appId, items, winePrefix, workshopContentDir)
+        configureSymlinksForApp(appId, items, winePrefix, workshopContentDir)
         Timber.tag(TAG).i(
             "Configured ${items.size} local Workshop item(s) for appId=$appId without remote fetch"
         )
@@ -4086,14 +4084,14 @@ object WorkshopManager {
 
     /** Configures mod symlinks for a given app. Public so callers don't duplicate the setup. */
     fun configureSymlinksForApp(
-        context: Context,
         appId: Int,
         items: List<WorkshopItem>,
         winePrefix: String,
         workshopContentDir: File,
     ) {
-        val gameRootDir = File(SteamService.getAppDirPath(appId))
-        val gameName = SteamService.getAppInfoOf(appId)?.name ?: ""
+        val steamManager = steamManagerProvider.get()
+        val gameRootDir = File(steamManager.getAppDirPath(appId))
+        val gameName = steamManager.getAppInfoOf(appId)?.name ?: ""
         val compatibilityOverride = WorkshopCompatibilityRegistry.get(
             GameSource.STEAM,
             appId.toString(),
@@ -4101,7 +4099,7 @@ object WorkshopManager {
 
         val containerId = "STEAM_$appId"
         var modPathOverride = ""
-        var bionicSteam = PreferencesEntryPoint.get(context).containerPreferences().launchBionicSteam
+        var bionicSteam = containerPreferences.launchBionicSteam
         try {
             val container = ContainerUtils.getContainer(context, containerId)
             modPathOverride = container.getExtra("workshopModPath", "")
@@ -4205,8 +4203,6 @@ object WorkshopManager {
     // Workshop download triggered from the library screen (save flow)
     // ────────────────────────────────────────────────────────────────
 
-    private const val WORKSHOP_UPDATE_THRESHOLD = 100L * 1024 * 1024 // 100 MB
-
     /**
      * Starts a background workshop mod download, returning a [DownloadInfo] that
      * the library progress bar can observe.  Returns `null` when there is nothing
@@ -4214,19 +4210,19 @@ object WorkshopManager {
      *
      * The download is launched on [Dispatchers.IO]; callers should **not** await
      * the returned info — the library UI will pick it up automatically because
-     * it is registered in [SteamService.downloadJobs].
+     * it is registered in [SteamManager.downloadJobs].
      */
     fun startWorkshopDownload(
         appId: Int,
         enabledIds: Set<Long>,
-        context: Context,
     ): DownloadInfo? {
-        val steamClient = SteamService.instance?.steamClient ?: return null
-        val steamId = SteamService.userSteamId ?: return null
+        val steamManager = steamManagerProvider.get()
+        val steamClient = steamManager.steamClient ?: return null
+        val steamId = steamManager.userSteamId ?: return null
 
         // Cancel any existing download for this app (e.g. user re-saved
         // with different mod selection while previous download was running).
-        SteamService.getAppDownloadInfo(appId)?.cancel("Replaced by new workshop download")
+        steamManager.getAppDownloadInfo(appId)?.cancel("Replaced by new workshop download")
 
         // Build the DownloadInfo first (synchronous) so the caller can rely
         // on it being in downloadJobs immediately after this returns.
@@ -4237,14 +4233,14 @@ object WorkshopManager {
         )
         info.updateStatusMessage(context.getString(R.string.workshop_checking_mods))
 
-        SteamService.setAppDownloadInfo(appId, info)
-        SteamService.workshopPausedApps.remove(appId)
-        SteamService.notifyDownloadStarted(appId)
+        steamManager.setAppDownloadInfo(appId, info)
+        steamManager.workshopPausedApps.remove(appId)
+        steamManager.notifyDownloadStarted(appId)
 
         val job = CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Mark download as pending so it can be resumed if the app is killed
-                SteamService.instance?.appDao?.setWorkshopDownloadPending(appId, true)
+                steamManager.appDao.setWorkshopDownloadPending(appId, true)
 
                 Timber.tag(TAG).i("[WS] startWorkshopDownload: appId=$appId, enabledIds=${enabledIds.size}")
 
@@ -4276,7 +4272,7 @@ object WorkshopManager {
                     Timber.tag(TAG).w(e, "Failed to ensure container for appId=$appId (workshop download will still proceed)")
                 }
 
-                val winePrefix = getContainerWinePrefix(context, appId)
+                val winePrefix = getContainerWinePrefix(appId)
                 val workshopContentDir = getWorkshopContentDir(winePrefix, appId)
 
                 // Clean up mods that were deselected
@@ -4288,7 +4284,7 @@ object WorkshopManager {
                 if (itemsToSync.isEmpty()) {
                     Timber.tag(TAG).i("Workshop download: all mods up-to-date for appId=$appId")
                     // Still configure symlinks for newly-enabled mods
-                    configureSymlinksForApp(context, appId, items, winePrefix, workshopContentDir)
+                    configureSymlinksForApp(appId, items, winePrefix, workshopContentDir)
                     return@launch
                 }
 
@@ -4305,7 +4301,7 @@ object WorkshopManager {
                     return@launch
                 }
 
-                val licenses = SteamService.getLicensesFromDb()
+                val licenses = steamManager.getLicensesFromDb()
                 var lastReportedBytes = 0L
 
                 val firstName = itemsToSync.firstOrNull()?.title ?: ""
@@ -4341,14 +4337,14 @@ object WorkshopManager {
                     info.updateStatusMessage(status)
                     info.emitProgressChange()
                 }
-                configureSymlinksForApp(context, appId, items, winePrefix, workshopContentDir)
+                configureSymlinksForApp(appId, items, winePrefix, workshopContentDir)
                 Timber.tag(TAG).i("Workshop download complete for appId=$appId")
             } catch (e: CancellationException) {
                 // Don't mark as "paused" if this was replaced by a new download
                 // for the same app (the new info is already in downloadJobs).
-                if (SteamService.getAppDownloadInfo(appId) === info) {
+                if (steamManager.getAppDownloadInfo(appId) === info) {
                     Timber.tag(TAG).i("Workshop download paused for appId=$appId")
-                    SteamService.workshopPausedApps.add(appId)
+                    steamManager.workshopPausedApps.add(appId)
                 } else {
                     Timber.tag(TAG).i("Workshop download replaced for appId=$appId")
                 }
@@ -4359,16 +4355,16 @@ object WorkshopManager {
             } finally {
                 // Remove download indicator first — this must always run
                 // so the UI never shows a permanently-stuck download.
-                if (SteamService.getAppDownloadInfo(appId) === info) {
-                    SteamService.removeDownloadJob(appId)
+                if (steamManager.getAppDownloadInfo(appId) === info) {
+                    steamManager.removeDownloadJob(appId)
                 }
                 // Clear pending flag. Uses NonCancellable so the suspend
                 // DB call completes even when the coroutine is cancelled
                 // (e.g. WiFi lost, download replaced, user paused).
-                if (!SteamService.workshopPausedApps.contains(appId)) {
+                if (!steamManager.workshopPausedApps.contains(appId)) {
                     try {
                         withContext(NonCancellable) {
-                            SteamService.instance?.appDao?.setWorkshopDownloadPending(appId, false)
+                            steamManager.appDao.setWorkshopDownloadPending(appId, false)
                         }
                     } catch (_: Exception) { }
                 }
@@ -4395,13 +4391,13 @@ object WorkshopManager {
     suspend fun checkForWorkshopUpdates(
         appId: Int,
         enabledIds: Set<Long>,
-        context: Context,
     ): WorkshopUpdateCheck? {
-        val steamClient = SteamService.instance?.steamClient
-        val steamId = SteamService.userSteamId
+        val steamManager = steamManagerProvider.get()
+        val steamClient = steamManager.steamClient
+        val steamId = steamManager.userSteamId
         if (steamClient == null || steamId == null) {
             if (appId == SlayTheSpireModTheSpireCompatibility.APP_ID) {
-                configureLocalWorkshopContentForEnabledIds(context, appId, enabledIds)
+                configureLocalWorkshopContentForEnabledIds(appId, enabledIds)
             }
             return null
         }
@@ -4411,21 +4407,21 @@ object WorkshopManager {
         if (!fetchResult.succeeded || !fetchResult.isComplete) {
             Timber.tag(TAG).w("Workshop fetch incomplete/failed for appId=$appId; skipping update check")
             if (appId == SlayTheSpireModTheSpireCompatibility.APP_ID) {
-                configureLocalWorkshopContentForEnabledIds(context, appId, enabledIds)
+                configureLocalWorkshopContentForEnabledIds(appId, enabledIds)
             }
             return null
         }
 
         val items = fetchResult.items.filter { it.publishedFileId in enabledIds }
 
-        val winePrefix = getContainerWinePrefix(context, appId)
+        val winePrefix = getContainerWinePrefix(appId)
 
         if (items.isEmpty()) {
             val workshopContentDir = getWorkshopContentDir(winePrefix, appId)
             if (appId == SlayTheSpireModTheSpireCompatibility.APP_ID) {
-                cleanupDisabledWorkshopArtifactsForApp(context, appId)
+                cleanupDisabledWorkshopArtifactsForApp(appId)
             } else {
-                configureSymlinksForApp(context, appId, emptyList(), winePrefix, workshopContentDir)
+                configureSymlinksForApp(appId, emptyList(), winePrefix, workshopContentDir)
             }
             return null
         }
@@ -4438,7 +4434,7 @@ object WorkshopManager {
         if (itemsToSync.isEmpty()) {
             // No updates, but still run post-processing and configure symlinks
             runPostProcessing(null, items, workshopContentDir)
-            configureSymlinksForApp(context, appId, items, winePrefix, workshopContentDir)
+            configureSymlinksForApp(appId, items, winePrefix, workshopContentDir)
             return null
         }
 
@@ -4475,7 +4471,7 @@ object WorkshopManager {
             )
             updateMarkerTimestamps(items, workshopContentDir)
             runPostProcessing(null, items, workshopContentDir)
-            configureSymlinksForApp(context, appId, items, winePrefix, workshopContentDir)
+            configureSymlinksForApp(appId, items, winePrefix, workshopContentDir)
             return null
         }
 

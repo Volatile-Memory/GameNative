@@ -2,8 +2,11 @@ package app.gamenative.service.gog
 
 import android.content.Context
 import app.gamenative.PluviaApp
+import app.gamenative.core.coroutines.IoDispatcher
+import app.gamenative.data.DownloadInfo
 import app.gamenative.data.GOGCloudSavesLocation
 import app.gamenative.data.GOGCloudSavesLocationTemplate
+import app.gamenative.data.GOGCredentials
 import app.gamenative.data.GOGGame
 import app.gamenative.data.GameSource
 import app.gamenative.data.LaunchInfo
@@ -11,6 +14,9 @@ import app.gamenative.data.LibraryItem
 import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.enums.Marker
 import app.gamenative.enums.PathType
+import app.gamenative.events.AndroidEvent
+import app.gamenative.preferences.DownloadPreferences
+import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.FileUtils
 import app.gamenative.utils.MarkerUtils
@@ -21,10 +27,18 @@ import com.winlator.core.FileUtils as WinlatorFileUtils
 import com.winlator.xenvironment.components.GuestProgramLauncherComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -57,8 +71,21 @@ data class GameSizeInfo(
 @Singleton
 class GOGManager @Inject constructor(
     private val gogGameDao: GOGGameDao,
+    private val downloadPreferences: DownloadPreferences,
     @ApplicationContext private val context: Context,
+    private val gogDownloadManagerProvider: Provider<GOGDownloadManager>,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
+    val gogDownloadManager: GOGDownloadManager get() = gogDownloadManagerProvider.get()
+
+    fun isGameInstalled(gameId: String): Boolean = getGOGGameOf(gameId)?.isInstalled == true
+
+    fun getInstallPath(gameId: String): String? =
+        getGOGGameOf(gameId)?.installPath?.takeIf { it.isNotBlank() } ?: getAppDirPath(gameId).takeIf { java.io.File(it).exists() }
+
+    fun updateInstallPath(gameId: String, path: String) = kotlinx.coroutines.runBlocking(ioDispatcher) {
+        getGameFromDbById(gameId)?.let { updateGame(it.copy(installPath = path)) }
+    }
 
     // Thread-safe cache for download sizes
     private val downloadSizeCache = ConcurrentHashMap<String, String>()
@@ -1285,4 +1312,416 @@ class GOGManager @Inject constructor(
     fun getGameInstallPath(gameId: String, gameTitle: String): String {
         return GOGConstants.getGameInstallPath(gameTitle)
     }
+
+    // ==========================================================================
+    // State & Download Orchestration (Absorbed from GOGService)
+    // ==========================================================================
+
+    data class GogConflict(
+        val localTimestamp: Long,
+        val remoteTimestamp: Long,
+    )
+
+    private val activeDownloads = ConcurrentHashMap<String, DownloadInfo>()
+    private val scope = CoroutineScope(ioDispatcher + SupervisorJob())
+
+    var onSyncStatusChanged: ((Boolean) -> Unit)? = null
+    var onDownloadTracked: ((DownloadInfo, String) -> Unit)? = null
+
+    private var syncInProgress: Boolean = false
+    private var backgroundSyncJob: Job? = null
+    private var lastSyncTimestamp: Long = 0L
+    private var hasPerformedInitialSync: Boolean = false
+    private val SYNC_THROTTLE_MILLIS = 15 * 60 * 1000L
+
+    fun hasActiveOperations(): Boolean {
+        return syncInProgress || backgroundSyncJob?.isActive == true || hasActiveDownload()
+    }
+
+    fun isSyncInProgress(): Boolean = syncInProgress
+
+    fun setSyncInProgress(inProgress: Boolean) {
+        syncInProgress = inProgress
+        onSyncStatusChanged?.invoke(inProgress)
+    }
+
+    fun hasActiveDownload(): Boolean {
+        return activeDownloads.isNotEmpty()
+    }
+
+    fun getCurrentlyDownloadingGame(): String? {
+        return activeDownloads.keys.firstOrNull()
+    }
+
+    fun getDownloadInfo(gameId: String): DownloadInfo? {
+        return activeDownloads[gameId]
+    }
+
+    fun getActiveDownloads(): Map<String, DownloadInfo> =
+        HashMap(activeDownloads)
+
+    private fun hasPartialDownload(game: GOGGame): Boolean {
+        if (game.isInstalled) return false
+        val title = game.title.ifBlank { return false }
+        val installPath = GOGConstants.getGameInstallPath(title)
+        return MarkerUtils.hasPartialInstall(installPath)
+    }
+
+    fun hasPartialDownload(gameId: String, fallbackTitle: String? = null): Boolean {
+        getGOGGameOf(gameId)?.let { return hasPartialDownload(it) }
+        val title = fallbackTitle?.ifBlank { null } ?: return false
+        val installPath = GOGConstants.getGameInstallPath(title)
+        return MarkerUtils.hasPartialInstall(installPath)
+    }
+
+    fun getPartialInstallPaths(): Set<String> {
+        val roots = buildList {
+            add(GOGConstants.internalGOGGamesPath)
+            if (downloadPreferences.externalStoragePath.isNotBlank()) {
+                add(GOGConstants.externalGOGGamesPath)
+            }
+        }.distinct()
+
+        return roots.asSequence()
+            .flatMap { root -> MarkerUtils.findResumablePartialInstalls(root).asSequence() }
+            .toSet()
+    }
+
+    suspend fun getPartialDownloads(): List<String> {
+        val partialInstallPaths = getPartialInstallPaths()
+        if (partialInstallPaths.isEmpty()) return emptyList()
+
+        return getNonInstalledGames()
+            .asSequence()
+            .filter { game -> !activeDownloads.containsKey(game.id) }
+            .filter { game ->
+                val title = game.title.ifBlank { return@filter false }
+                partialInstallPaths.contains(GOGConstants.getGameInstallPath(title))
+            }
+            .map { it.id }
+            .toList()
+    }
+
+    fun cleanupDownload(gameId: String) {
+        activeDownloads.remove(gameId)
+    }
+
+    fun cancelDownload(gameId: String): Boolean {
+        val downloadInfo = activeDownloads[gameId]
+        return if (downloadInfo != null) {
+            Timber.i("Cancelling download for game: $gameId")
+            downloadInfo.cancel()
+            activeDownloads.remove(gameId)
+            Timber.d("Download cancelled for game: $gameId")
+            true
+        } else {
+            Timber.w("No active download found for game: $gameId")
+            false
+        }
+    }
+
+    fun getGOGGameOf(gameId: String): GOGGame? {
+        return runBlocking(ioDispatcher) {
+            getGameFromDbById(gameId)
+        }
+    }
+
+    suspend fun updateGOGGame(game: GOGGame) {
+        updateGame(game)
+    }
+
+    fun downloadGame(
+        gameId: String,
+        installPath: String,
+        containerLanguage: String,
+    ): Result<DownloadInfo?> = downloadGame(context, gameId, installPath, containerLanguage)
+
+    fun downloadGame(
+        targetContext: Context,
+        gameId: String,
+        installPath: String,
+        containerLanguage: String,
+    ): Result<DownloadInfo?> {
+        val downloadInfo = DownloadInfo(jobCount = 1, gameId = 0, downloadingAppIds = CopyOnWriteArrayList<Int>())
+        downloadInfo.setPersistencePath(installPath)
+
+        val persistedBytes = downloadInfo.loadPersistedBytesDownloaded(installPath)
+        if (persistedBytes > 0L) {
+            downloadInfo.initializeBytesDownloaded(persistedBytes)
+        }
+
+        activeDownloads[gameId] = downloadInfo
+        onDownloadTracked?.invoke(downloadInfo, "")
+
+        val job = scope.launch {
+            try {
+                Timber.d("[Download] Starting download for game $gameId")
+                val commonRedistDir = File(installPath, "_CommonRedist")
+                Timber.tag("GOG").d("Will install dependencies to _CommonRedist")
+
+                val result = gogDownloadManagerProvider.get().downloadGame(
+                    gameId, File(installPath),
+                    downloadInfo, containerLanguage, true, commonRedistDir,
+                )
+
+                if (result.isFailure) {
+                    val error = result.exceptionOrNull()
+                    Timber.e(error, "[Download] Failed for game $gameId")
+                    downloadInfo.setProgress(-1.0f)
+                    downloadInfo.setActive(false)
+
+                    SnackbarManager.show("Download failed: ${error?.message ?: "Unknown error"}")
+                } else {
+                    Timber.i("[Download] Completed successfully for game $gameId")
+
+                    val appId = "GOG_$gameId"
+                    val numericGameId = gameId.toIntOrNull()
+                    try {
+                        val gogGame = getGameFromDbById(gameId)
+                        val locations = if (gogGame != null) getSaveDirectoryPath(targetContext, appId, gogGame.title) else null
+                        if (numericGameId != null && !locations.isNullOrEmpty() && !ContainerUtils.isLocalSavesOnly(targetContext, appId)) {
+                            try {
+                                downloadInfo.setPostInstallSyncing(true)
+                                PluviaApp.events.emit(AndroidEvent.PostInstallSyncStatusChanged(numericGameId, true))
+                                downloadInfo.updateStatusMessage("Syncing saves...")
+                                syncCloudSaves(targetContext, appId, preferredAction = "download")
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Timber.e(e, "[PostInstallSync] Cloud save sync failed for game $gameId")
+                            } finally {
+                                downloadInfo.setPostInstallSyncing(false)
+                                downloadInfo.updateStatusMessage(null)
+                                PluviaApp.events.emit(AndroidEvent.PostInstallSyncStatusChanged(numericGameId, false))
+                            }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Timber.e(e, "[PostInstallSync] Cloud save sync failed for game $gameId")
+                    }
+
+                    SnackbarManager.show("Download completed successfully!")
+                    downloadInfo.setProgress(1.0f)
+                    downloadInfo.setActive(false)
+                }
+            } catch (e: CancellationException) {
+                downloadInfo.setPostInstallSyncing(false)
+                downloadInfo.updateStatusMessage(null)
+                PluviaApp.events.emit(AndroidEvent.PostInstallSyncStatusChanged(gameId.toIntOrNull() ?: -1, false))
+                throw e
+            } catch (e: Exception) {
+                Timber.e(e, "[Download] Exception for game $gameId")
+                downloadInfo.setPostInstallSyncing(false)
+                downloadInfo.updateStatusMessage(null)
+                PluviaApp.events.emit(AndroidEvent.PostInstallSyncStatusChanged(gameId.toIntOrNull() ?: -1, false))
+                downloadInfo.setProgress(-1.0f)
+                downloadInfo.setActive(false)
+
+                SnackbarManager.show("Download error: ${e.message ?: "Unknown error"}")
+            } finally {
+                activeDownloads.remove(gameId)
+                Timber.d("[Download] Finished for game $gameId, progress: ${downloadInfo.getProgress()}, active: ${downloadInfo.isActive()}")
+            }
+        }
+        downloadInfo.setDownloadJob(job)
+
+        return Result.success(downloadInfo)
+    }
+
+    suspend fun refreshSingleGame(gameId: String): Result<GOGGame?> = refreshSingleGame(gameId, context)
+
+    suspend fun deleteGame(libraryItem: LibraryItem): Result<Unit> = deleteGame(context, libraryItem)
+
+    suspend fun syncCloudSaves(
+        appId: String,
+        preferredAction: String = "none",
+    ): Boolean = syncCloudSaves(context, appId, preferredAction)
+
+    suspend fun syncCloudSaves(
+        targetContext: Context,
+        appId: String,
+        preferredAction: String = "none",
+    ): Boolean = withContext(ioDispatcher) {
+        try {
+            Timber.tag("GOG").d("[Cloud Saves] syncCloudSaves called for $appId with action: $preferredAction")
+
+            if (!startSync(appId)) {
+                Timber.tag("GOG").w("[Cloud Saves] Sync already in progress for $appId, skipping duplicate sync")
+                return@withContext false
+            }
+
+            try {
+                if (!GOGAuthManager.hasStoredCredentials(targetContext)) {
+                    Timber.tag("GOG").e("[Cloud Saves] Cannot sync saves: not authenticated")
+                    return@withContext false
+                }
+
+                val authConfigPath = GOGAuthManager.getAuthConfigPath(targetContext)
+                Timber.tag("GOG").d("[Cloud Saves] Using auth config path: $authConfigPath")
+
+                val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+                Timber.tag("GOG").d("[Cloud Saves] Extracted game ID: $gameId from appId: $appId")
+                val game = getGameFromDbById(gameId.toString())
+
+                if (game == null) {
+                    Timber.tag("GOG").e("[Cloud Saves] Game not found for appId: $appId")
+                    return@withContext false
+                }
+                Timber.tag("GOG").d("[Cloud Saves] Found game: ${game.title}")
+
+                val saveLocations = getSaveDirectoryPath(targetContext, appId, game.title)
+                if (saveLocations.isNullOrEmpty()) {
+                    Timber.tag("GOG").w("[Cloud Saves] No save locations found for game $appId (cloud saves may not be enabled)")
+                    return@withContext false
+                }
+                Timber.tag("GOG").i("[Cloud Saves] Found ${saveLocations.size} save location(s) for $appId")
+
+                var allSucceeded = true
+
+                for ((index, location) in saveLocations.withIndex()) {
+                    try {
+                        Timber.tag("GOG").d("[Cloud Saves] Processing location ${index + 1}/${saveLocations.size}: '${location.name}'")
+
+                        val timestampStr = getCloudSaveSyncTimestamp(appId, location.name)
+                        val timestamp = timestampStr.toLongOrNull() ?: 0L
+
+                        Timber.tag("GOG").i("[Cloud Saves] Syncing '${location.name}' for game $gameId (clientId: ${location.clientId}, path: ${location.location}, timestamp: $timestamp, action: $preferredAction)")
+
+                        if (location.clientSecret.isEmpty()) {
+                            Timber.tag("GOG").e("[Cloud Saves] Missing clientSecret for '${location.name}', skipping sync")
+                            continue
+                        }
+
+                        val cloudSavesManager = GOGCloudSavesManager(targetContext)
+                        val newTimestamp = cloudSavesManager.syncSaves(
+                            clientId = location.clientId,
+                            clientSecret = location.clientSecret,
+                            localPath = location.location,
+                            dirname = location.name,
+                            lastSyncTimestamp = timestamp,
+                            preferredAction = preferredAction,
+                        )
+
+                        if (newTimestamp != timestamp) {
+                            if (newTimestamp > 0) {
+                                setCloudSaveSyncTimestamp(appId, location.name, newTimestamp.toString())
+                                Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
+                            } else {
+                                Timber.tag("GOG").e("[Cloud Saves] Failed to sync save location '${location.name}' for game $gameId (timestamp: $newTimestamp)")
+                                allSucceeded = false
+                            }
+                        } else {
+                            Timber.tag("GOG").i("[Cloud Saves] No save changes found for $appId")
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Timber.tag("GOG").e(e, "[Cloud Saves] Exception syncing save location '${location.name}' for game $gameId")
+                        allSucceeded = false
+                    }
+                }
+
+                if (allSucceeded) {
+                    Timber.tag("GOG").i("[Cloud Saves] All save locations synced successfully for $appId")
+                    return@withContext true
+                } else {
+                    Timber.tag("GOG").w("[Cloud Saves] Some save locations failed to sync for $appId")
+                    return@withContext false
+                }
+            } finally {
+                endSync(appId)
+                Timber.tag("GOG").d("[Cloud Saves] Sync completed and lock released for $appId")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.tag("GOG").e(e, "[Cloud Saves] Failed to sync cloud saves for App ID: $appId")
+            return@withContext false
+        }
+    }
+
+    suspend fun detectCloudSaveConflict(
+        appId: String,
+    ): GogConflict? = detectCloudSaveConflict(context, appId)
+
+    suspend fun detectCloudSaveConflict(
+        targetContext: Context,
+        appId: String,
+    ): GogConflict? = withContext(ioDispatcher) {
+        if (!GOGAuthManager.hasStoredCredentials(targetContext)) return@withContext null
+
+        if (!startSync(appId)) {
+            Timber.tag("GOG").d("[Cloud Saves] Sync already in progress for $appId, skipping conflict detection")
+            return@withContext null
+        }
+
+        try {
+            val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+            val game = getGameFromDbById(gameId.toString()) ?: return@withContext null
+            val saveLocations = getSaveDirectoryPath(targetContext, appId, game.title)
+                ?: return@withContext null
+            val manager = GOGCloudSavesManager(targetContext)
+
+            for (location in saveLocations) {
+                if (location.clientSecret.isEmpty()) continue
+                val timestamp = getCloudSaveSyncTimestamp(appId, location.name).toLongOrNull() ?: 0L
+                val conflict = manager.detectConflict(
+                    clientId = location.clientId,
+                    clientSecret = location.clientSecret,
+                    localPath = location.location,
+                    dirname = location.name,
+                    lastSyncTimestamp = timestamp,
+                )
+                if (conflict != null) {
+                    Timber.tag("GOG").i("[Cloud Saves] Conflict in '${location.name}' for $appId")
+                    return@withContext GogConflict(conflict.localTimestamp, conflict.remoteTimestamp)
+                }
+            }
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.tag("GOG").e(e, "[Cloud Saves] Conflict detection failed for $appId")
+            null
+        } finally {
+            endSync(appId)
+        }
+    }
+
+    fun hasStoredCredentials(): Boolean = GOGAuthManager.hasStoredCredentials(context)
+
+    fun hasStoredCredentials(targetContext: Context): Boolean = GOGAuthManager.hasStoredCredentials(targetContext)
+
+    suspend fun getStoredCredentials(targetContext: Context = context): Result<GOGCredentials> =
+        GOGAuthManager.getStoredCredentials(targetContext)
+
+    suspend fun authenticateWithCode(authorizationCode: String, targetContext: Context = context): Result<GOGCredentials> =
+        GOGAuthManager.authenticateWithCode(targetContext, authorizationCode)
+
+    suspend fun validateCredentials(targetContext: Context = context): Result<Boolean> =
+        GOGAuthManager.validateCredentials(targetContext)
+
+    fun clearStoredCredentials(targetContext: Context = context): Boolean =
+        GOGAuthManager.clearStoredCredentials(targetContext)
+
+    suspend fun logout(targetContext: Context = context): Result<Unit> = withContext(ioDispatcher) {
+        try {
+            Timber.i("[GOGManager] Logging out from GOG...")
+            val credentialsCleared = clearStoredCredentials(targetContext)
+            if (!credentialsCleared) {
+                Timber.w("[GOGManager] Failed to clear credentials during logout")
+            }
+            deleteAllNonInstalledGames()
+            Timber.i("[GOGManager] All non-installed GOG games removed from database")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "[GOGManager] Error during logout")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun startBackgroundSync(): Result<Unit> = startBackgroundSync(context)
+
+    suspend fun refreshLibrary(): Result<Int> = refreshLibrary(context)
 }

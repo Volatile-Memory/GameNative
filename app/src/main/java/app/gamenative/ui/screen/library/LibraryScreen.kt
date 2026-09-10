@@ -75,6 +75,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.gamenative.BuildConfig
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.PluviaApp
 import app.gamenative.R

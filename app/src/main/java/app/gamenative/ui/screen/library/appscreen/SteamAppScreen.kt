@@ -61,6 +61,7 @@ import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.MarkerUtils
 import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.StorageUtils
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.workshop.WorkshopManager
 import app.gamenative.NetworkMonitor
 import app.gamenative.service.SteamService.Companion.getInstalledApp
@@ -500,12 +501,13 @@ class SteamAppScreen : BaseAppScreen() {
     /** Resumes a paused workshop download for [gameId], if one exists. */
     private fun resumeWorkshopDownload(gameId: Int, context: Context) {
         val appDao = SteamService.instance?.appDao
+        val workshopManager = context.appUtilsEntryPoint().workshopManager()
         CoroutineScope(Dispatchers.IO).launch {
-            val enabledIds = WorkshopManager.parseEnabledIds(
+            val enabledIds = workshopManager.parseEnabledIds(
                 appDao?.getEnabledWorkshopItemIds(gameId),
             )
             if (enabledIds.isNotEmpty()) {
-                WorkshopManager.startWorkshopDownload(gameId, enabledIds, context)
+                workshopManager.startWorkshopDownload(gameId, enabledIds)
             }
         }
     }
@@ -1375,6 +1377,7 @@ class SteamAppScreen : BaseAppScreen() {
         }
 
         if (workshopDialogShown) {
+            val workshopManager = remember(context) { context.appUtilsEntryPoint().workshopManager() }
             val appDao = remember { SteamService.instance?.appDao }
             var currentEnabledIds by remember { mutableStateOf<Set<Long>?>(null) }
 
@@ -1395,7 +1398,7 @@ class SteamAppScreen : BaseAppScreen() {
                 val idsString = withContext(Dispatchers.IO) {
                     appDao?.getEnabledWorkshopItemIds(gameId)
                 }
-                currentEnabledIds = WorkshopManager.parseEnabledIds(idsString)
+                currentEnabledIds = workshopManager.parseEnabledIds(idsString)
                 // Load saved mod path override
                 withContext(Dispatchers.IO) {
                     runCatching {
@@ -1425,13 +1428,12 @@ class SteamAppScreen : BaseAppScreen() {
                                 && SteamService.isAppInstalled(gameId)
                                 && NetworkMonitor.hasInternet.value
                             ) {
-                                WorkshopManager.startWorkshopDownload(gameId, enabledIds, context)
+                                workshopManager.startWorkshopDownload(gameId, enabledIds)
                             } else if (enabledIds.isEmpty() && SteamService.isAppInstalled(gameId)) {
                                 // User deselected all mods — remove downloaded files and symlinks
                                 val gameRootDir = File(SteamService.getAppDirPath(gameId))
                                 val gameName = SteamService.getAppInfoOf(gameId)?.name ?: ""
-                                WorkshopManager.deleteWorkshopMods(
-                                    context = context,
+                                workshopManager.deleteWorkshopMods(
                                     containerId = gameId.toString(),
                                     gameRootDir = gameRootDir,
                                     gameName = gameName,

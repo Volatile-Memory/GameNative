@@ -4,8 +4,9 @@ import android.content.Context
 import androidx.compose.ui.graphics.Color
 import app.gamenative.BuildConfig
 import app.gamenative.R
+import app.gamenative.core.appinfo.StringResolver
+import app.gamenative.preferences.AuthPreferences
 import app.gamenative.preferences.ContainerPreferences
-import app.gamenative.preferences.preferencesEntryPoint
 import com.winlator.box86_64.Box86_64PresetManager
 import com.winlator.container.Container
 import com.winlator.contents.ContentProfile
@@ -13,8 +14,11 @@ import com.winlator.core.DefaultVersion
 import com.winlator.core.GPUInformation
 import com.winlator.core.KeyValueSet
 import com.winlator.fexcore.FEXCorePresetManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -29,8 +33,16 @@ import timber.log.Timber
 /**
  * Service for fetching best configurations for games from GameNative API.
  */
-object BestConfigService {
-    private const val API_BASE_URL = "https://api.gamenative.app/api/best-config"
+@Singleton
+class BestConfigService @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val containerPreferences: ContainerPreferences,
+    private val authPreferences: AuthPreferences,
+    private val stringResolver: StringResolver,
+) {
+    companion object {
+        private const val API_BASE_URL = "https://api.gamenative.app/api/best-config"
+    }
     private val httpClient = Net.http
 
     // In-memory cache keyed by "${gameName}_${gpuName}"
@@ -152,22 +164,22 @@ object BestConfigService {
     /**
      * Gets user-friendly compatibility message based on match type.
      */
-    fun getCompatibilityMessage(context: Context, matchType: String?): CompatibilityMessage {
+    fun getCompatibilityMessage(matchType: String?): CompatibilityMessage {
         return when (matchType) {
             "exact_gpu_match" -> CompatibilityMessage(
-                text = context.getString(R.string.best_config_exact_gpu_match),
+                text = stringResolver.getString(R.string.best_config_exact_gpu_match),
                 color = Color.Green
             )
             "gpu_family_match" -> CompatibilityMessage(
-                text = context.getString(R.string.best_config_gpu_family_match),
+                text = stringResolver.getString(R.string.best_config_gpu_family_match),
                 color = Color.Green
             )
             "fallback_match" -> CompatibilityMessage(
-                text = context.getString(R.string.best_config_fallback_match),
+                text = stringResolver.getString(R.string.best_config_fallback_match),
                 color = Color.Yellow
             )
             else -> CompatibilityMessage(
-                text = context.getString(R.string.best_config_compatibility_unknown),
+                text = stringResolver.getString(R.string.best_config_compatibility_unknown),
                 color = Color.Gray
             )
         }
@@ -216,7 +228,6 @@ object BestConfigService {
      * exact A12 match), so a server-provided exact-GPU config is left untouched.
      */
     private fun applyGpuFamilyOverrides(
-        context: Context,
         filteredJson: JSONObject,
         matchedGpu: String,
     ): JSONObject {
@@ -270,7 +281,6 @@ object BestConfigService {
     }
 
     private fun prepareConfigForApplication(
-        context: Context,
         configJson: JsonObject,
         matchType: String,
         storeMatch: Boolean = true,
@@ -283,7 +293,7 @@ object BestConfigService {
         return if (preserveConfigValues) {
             filteredJson
         } else {
-            applyGpuFamilyOverrides(context, filteredJson, matchedGpu)
+            applyGpuFamilyOverrides(filteredJson, matchedGpu)
         }
     }
 
@@ -291,7 +301,7 @@ object BestConfigService {
      * Validates component versions in the filtered JSON.
      * Returns list of human-readable descriptions of missing/unavailable components.
      */
-    private suspend fun validateComponentVersions(context: Context, filteredJson: JSONObject): List<String> {
+    private suspend fun validateComponentVersions(filteredJson: JSONObject): List<String> {
         val missing = mutableListOf<String>()
         // Get resource arrays (same as ContainerConfigDialog)
         val dxvkVersions = context.resources.getStringArray(R.array.dxvk_version_entries).toList()
@@ -509,7 +519,6 @@ object BestConfigService {
     }
 
     suspend fun resolveMissingManifestInstallRequests(
-        context: Context,
         configJson: JsonObject,
         matchType: String,
         matchedGpu: String = "",
@@ -517,7 +526,6 @@ object BestConfigService {
     ): List<ManifestInstallRequest> {
         val updatedConfigJson = Json.parseToJsonElement(configJson.toString()).jsonObject
         val filteredJson = prepareConfigForApplication(
-            context = context,
             configJson = updatedConfigJson,
             matchType = matchType,
             matchedGpu = matchedGpu,
@@ -735,7 +743,6 @@ object BestConfigService {
     private fun replaceWithDefaults(
         filteredJson: JSONObject,
         missing: List<String>,
-        containerPreferences: ContainerPreferences,
     ) {
         for (entry in missing) {
             when {
@@ -780,7 +787,6 @@ object BestConfigService {
      * When preserveConfigValues is true, match filtering and device-specific substitutions are skipped.
      */
     suspend fun parseConfigToContainerData(
-        context: Context,
         configJson: JsonObject,
         matchType: String,
         applyKnownConfig: Boolean,
@@ -789,7 +795,6 @@ object BestConfigService {
         matchedGpu: String = "",
         preserveConfigValues: Boolean = false,
     ): Map<String, Any?>? = parseConfigResult(
-        context = context,
         configJson = configJson,
         matchType = matchType,
         applyKnownConfig = applyKnownConfig,
@@ -800,7 +805,6 @@ object BestConfigService {
     ).config
 
     suspend fun parseConfigResult(
-        context: Context,
         configJson: JsonObject,
         matchType: String,
         applyKnownConfig: Boolean,
@@ -809,8 +813,8 @@ object BestConfigService {
         matchedGpu: String = "",
         preserveConfigValues: Boolean = false,
     ): ParsedConfigResult {
-        val containerPrefs = context.preferencesEntryPoint().containerPreferences()
-        val authPrefs = context.preferencesEntryPoint().authPreferences()
+        val containerPrefs = containerPreferences
+        val authPrefs = authPreferences
         try {
             val originalJson = JSONObject(configJson.toString())
 
@@ -883,7 +887,6 @@ object BestConfigService {
                 // Step 1: Prepare the config using either device-adapted or value-preserving behavior
                 val updatedConfigJson = Json.parseToJsonElement(originalJson.toString()).jsonObject
                 val filteredJson = prepareConfigForApplication(
-                    context = context,
                     configJson = updatedConfigJson,
                     matchType = matchType,
                     storeMatch = storeMatch,
@@ -892,14 +895,14 @@ object BestConfigService {
                 )
 
                 // Step 2: check for unavailable component versions
-                val missingComponents = validateComponentVersions(context, filteredJson)
+                val missingComponents = validateComponentVersions(filteredJson)
                 if (missingComponents.isNotEmpty()) {
                     if (!forceApply) {
                         Timber.tag("BestConfigService").w("Config rejected: missing components: ${missingComponents.joinToString(", ")}")
                         return ParsedConfigResult(emptyMap(), missingComponents)
                     }
                     Timber.tag("BestConfigService").w("Force-applying config, replacing missing components with defaults: ${missingComponents.joinToString(", ")}")
-                    replaceWithDefaults(filteredJson, missingComponents, containerPrefs)
+                    replaceWithDefaults(filteredJson, missingComponents)
                 }
 
                 // Step 3: Build map with only fields present in filteredJson (not defaults)

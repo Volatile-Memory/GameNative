@@ -35,6 +35,7 @@ import java.security.MessageDigest
 import java.util.zip.Inflater
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -83,9 +84,10 @@ class HttpStatusException(val statusCode: Int, message: String) : Exception(mess
 class GOGDownloadManager @Inject constructor(
     private val apiClient: GOGApiClient,
     private val parser: GOGManifestParser,
-    private val gogManager: GOGManager,
     @ApplicationContext private val context: Context,
+    private val gogManagerProvider: Provider<GOGManager>,
 ) {
+    private val gogManager get() = gogManagerProvider.get()
     private val WINDOWS_OS_VERSION = "windows"
 
     /**

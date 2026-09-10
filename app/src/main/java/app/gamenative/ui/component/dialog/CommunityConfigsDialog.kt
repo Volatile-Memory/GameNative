@@ -72,6 +72,7 @@ import app.gamenative.api.canonicalCommunityGpu
 import app.gamenative.api.communityConfigMatchType
 import app.gamenative.api.communityIdentityKey
 import app.gamenative.api.sortCommunityRuns
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.utils.BestConfigService
 import com.winlator.core.GPUInformation
 import java.time.OffsetDateTime
@@ -762,8 +763,7 @@ private fun CommunityConfigPreviewDialog(
         dependencyCheckFailed = false
         try {
             dependencyNames = withContext(Dispatchers.IO) {
-                BestConfigService.resolveMissingManifestInstallRequests(
-                    context = context,
+                context.appUtilsEntryPoint().bestConfigService().resolveMissingManifestInstallRequests(
                     configJson = run.config,
                     matchType = matchType,
                     matchedGpu = run.device.gpu,

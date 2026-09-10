@@ -3,7 +3,6 @@ package app.gamenative.service.epic
 import android.content.Context
 import android.util.Log
 import app.gamenative.preferences.DownloadPreferences
-import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.data.DownloadInfo
 import app.gamenative.data.GameSource
 import app.gamenative.enums.Marker
@@ -31,6 +30,7 @@ import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.util.zip.Inflater
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -66,10 +66,11 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 @Singleton
 class EpicDownloadManager @Inject constructor(
-    private val epicManager: EpicManager,
     @ApplicationContext private val context: Context,
-    private val downloadPreferences: DownloadPreferences? = null,
+    private val downloadPreferences: DownloadPreferences,
+    private val epicManagerProvider: Provider<EpicManager>,
 ) {
+    private val epicManager get() = epicManagerProvider.get()
     companion object {
         /**
          * Internal chunk-cache dir for a download target. Keyed by the full install
@@ -512,7 +513,7 @@ class EpicDownloadManager @Inject constructor(
                 downloadingAppIds = java.util.concurrent.CopyOnWriteArrayList(),
             )
 
-            val prefs = downloadPreferences ?: PreferencesEntryPoint.get(context).downloadPreferences()
+            val prefs = downloadPreferences
             val parallelDownloads = prefs.downloadSpeed.coerceAtLeast(1)
             val downloadHttpClient = Net.httpForParallelDownloads(parallelDownloads)
 

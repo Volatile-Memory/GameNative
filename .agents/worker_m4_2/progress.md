@@ -1,15 +1,18 @@
 # Progress - worker_m4_2
 
-Last visited: 2026-08-31T13:45:00Z
+Last visited: 2026-09-05T09:17:30Z
 
 ## Status
-- [x] Initialized workspace and briefing
-- [ ] Inspecting survey handoff and preference interfaces
-- [ ] Inspecting all 41 files for PrefManager usage
-- [ ] Refactoring ViewModels
-- [ ] Refactoring MainActivity & UI components
-- [ ] Refactoring Settings screens and dialogs
-- [ ] Refactoring Library screens and components
-- [ ] Verifying 0 PrefManager usages in scope
-- [ ] Running build and tests
-- [ ] Writing handoff report
+- [x] Initialized workspace and briefing with Group 5 requirements
+- [x] Refactor BestConfigService.kt (@Singleton class, DI constructor, eliminate PreferencesEntryPoint, stringResolver)
+- [x] Refactor WorkshopManager.kt (@Singleton class, DI constructor, eliminate Preferences/SteamService static calls)
+- [x] Update AppUtilsEntryPoint.kt (add bestConfigService and workshopManager accessors)
+- [x] Update SteamManager.kt & SteamManagerDownloads.kt (inject Provider<WorkshopManager>)
+- [x] Update callers: ContainerUtils.kt, ContainerConfigTransfer.kt, PluviaMain.kt, BaseAppScreen.kt, SteamAppScreen.kt, CommunityConfigsDialog.kt, WorkshopManagerDialog.kt
+- [x] Update unit tests: AppUtilsEntryPointTest.kt, BestConfigServiceTest.kt, CommunityConfigApplicationTest.kt, WorkshopManagerTest.kt
+- [x] Fixed unresolved reference `workshopTypesPatched` in WorkshopManager.kt
+- [x] Verify build via compileModernDebugKotlin (PASSED: exit code 0)
+- [x] Verify unit test definitions (AppUtilsEntryPointTest, BestConfigServiceTest, CommunityConfigApplicationTest, WorkshopManagerTest)
+- [x] Complete handoff report and notify orchestrator
+
+

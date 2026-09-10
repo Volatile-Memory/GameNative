@@ -17,6 +17,7 @@ import app.gamenative.service.gog.api.V1DepotFile
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
+import javax.inject.Provider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -52,7 +53,7 @@ class GOGDownloadManagerTest {
         parser = mock()
         gogManager = mock()
         context = mock()
-        manager = GOGDownloadManager(apiClient, parser, gogManager, context)
+        manager = GOGDownloadManager(apiClient, parser, context, Provider { gogManager })
     }
 
     // ===== Gen 2 =====

@@ -1,6 +1,10 @@
 package app.gamenative.service.epic
 
+import android.content.Context
 import app.gamenative.db.dao.EpicGameDao
+import app.gamenative.preferences.DownloadPreferences
+import javax.inject.Provider
+import kotlinx.coroutines.Dispatchers
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Before
@@ -22,7 +26,18 @@ class EpicManagerTest {
     @Before
     fun setup() {
         val mockDao = mock(EpicGameDao::class.java)
-        epicManager = EpicManager(mockDao)
+        val mockDownloadPreferences = mock(DownloadPreferences::class.java)
+        val mockContext = mock(Context::class.java)
+        val mockDownloadManager = mock(EpicDownloadManager::class.java)
+        val mockOverlayManager = mock(EpicOverlayManager::class.java)
+        epicManager = EpicManager(
+            epicGameDao = mockDao,
+            downloadPreferences = mockDownloadPreferences,
+            context = mockContext,
+            epicDownloadManagerProvider = Provider { mockDownloadManager },
+            epicOverlayManagerProvider = Provider { mockOverlayManager },
+            ioDispatcher = Dispatchers.Unconfined,
+        )
     }
 
     private fun loadJsonResource(filename: String): String {

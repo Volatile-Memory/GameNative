@@ -12,14 +12,15 @@ import androidx.core.net.toUri
 import app.gamenative.MainActivity
 import app.gamenative.data.DownloadInfo
 import app.gamenative.preferences.GeneralPreferences
-import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class NotificationHelper @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val generalPreferences: GeneralPreferences = PreferencesEntryPoint.get(context).generalPreferences(),
+    private val generalPreferences: GeneralPreferences,
 ) {
 
     companion object {

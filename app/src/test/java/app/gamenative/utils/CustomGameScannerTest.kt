@@ -45,6 +45,7 @@ class CustomGameScannerTest {
             downloadPreferences = downloadPreferences,
             libraryPreferences = libraryPreferences,
             containerPreferences = containerPreferences,
+            steamManagerProvider = { mockk(relaxed = true) },
         )
     }
 

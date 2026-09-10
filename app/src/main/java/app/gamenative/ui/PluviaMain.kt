@@ -1735,8 +1735,8 @@ fun preLaunchApp(
         // references but that aren't installed yet — all sources, including custom games
         try {
             val configJson = Json.parseToJsonElement(container.containerJson).jsonObject
-            val missingRequests = BestConfigService.resolveMissingManifestInstallRequests(
-                context, configJson, "exact_gpu_match",
+            val missingRequests = context.appUtilsEntryPoint().bestConfigService().resolveMissingManifestInstallRequests(
+                configJson, "exact_gpu_match",
             )
             for (request in missingRequests) {
                 setLoadingMessage(context.getString(R.string.main_downloading_entry, request.entry.name))
@@ -2036,7 +2036,8 @@ fun preLaunchApp(
         // Workshop mod sync: check for updates and download if needed
         val appDao = SteamService.instance?.appDao
         val workshopMods = appDao?.getWorkshopMods(gameId) ?: false
-        val enabledWorkshopIds = WorkshopManager.parseEnabledIds(
+        val workshopManager = context.appUtilsEntryPoint().workshopManager()
+        val enabledWorkshopIds = workshopManager.parseEnabledIds(
             appDao?.getEnabledWorkshopItemIds(gameId),
         )
         Timber.tag("Workshop").i(
@@ -2053,8 +2054,7 @@ fun preLaunchApp(
                     if (gameId == SlayTheSpireModTheSpireCompatibility.APP_ID) {
                         setLoadingMessage(context.getString(R.string.workshop_processing))
                         setLoadingProgress(-1f)
-                        WorkshopManager.configureLocalWorkshopContentForEnabledIds(
-                            context = context,
+                        workshopManager.configureLocalWorkshopContentForEnabledIds(
                             appId = gameId,
                             enabledIds = enabledWorkshopIds,
                         )
@@ -2076,15 +2076,14 @@ fun preLaunchApp(
                 setLoadingMessage(context.getString(R.string.workshop_checking_mods))
                 setLoadingProgress(-1f)
 
-                val updateCheck = WorkshopManager.checkForWorkshopUpdates(
+                val updateCheck = workshopManager.checkForWorkshopUpdates(
                     appId = gameId,
                     enabledIds = enabledWorkshopIds,
-                    context = context,
                 )
 
                 if (updateCheck != null) {
                     val totalBytes = updateCheck.totalUpdateBytes
-                    val thresholdBytes = WorkshopManager.getUpdateThresholdBytes()
+                    val thresholdBytes = workshopManager.getUpdateThresholdBytes()
                     val sizeMB = String.format(Locale.US, "%.0f", totalBytes / 1_048_576.0)
                     Timber.tag("Workshop").i(
                         "${updateCheck.itemsToSync.size} mod update(s), ${sizeMB}MB total"
@@ -2117,7 +2116,7 @@ fun preLaunchApp(
                     var downloadedItems = false
 
                     if (shouldDownload) {
-                        val spaceError = WorkshopManager.checkDiskSpace(
+                        val spaceError = workshopManager.checkDiskSpace(
                             updateCheck.workshopContentDir, totalBytes * 2,
                         )
                         if (spaceError != null) {
@@ -2131,7 +2130,7 @@ fun preLaunchApp(
                                 var currentCompleted = 0
                                 var currentTitle = updateCheck.itemsToSync.firstOrNull()?.title ?: ""
 
-                                val successCount = WorkshopManager.downloadItems(
+                                val successCount = workshopManager.downloadItems(
                                     items = updateCheck.itemsToSync,
                                     steamClient = steamClient,
                                     licenses = licenses,
@@ -2171,14 +2170,14 @@ fun preLaunchApp(
                     // Post-processing and symlinks (runs for both download and skip paths)
                     setLoadingMessage(context.getString(R.string.workshop_processing))
                     setLoadingProgress(-1f)
-                    WorkshopManager.runPostProcessing(
+                    workshopManager.runPostProcessing(
                         if (downloadedItems) updateCheck.itemsToSync else null,
                         updateCheck.allItems, updateCheck.workshopContentDir,
                     ) { status ->
                         setLoadingMessage(status)
                     }
-                    WorkshopManager.configureSymlinksForApp(
-                        context, gameId, updateCheck.allItems,
+                    workshopManager.configureSymlinksForApp(
+                        gameId, updateCheck.allItems,
                         updateCheck.winePrefix, updateCheck.workshopContentDir,
                     )
                 }
@@ -2193,7 +2192,7 @@ fun preLaunchApp(
             File(SteamService.getAppDirPath(gameId)).isDirectory
         ) {
             withContext(Dispatchers.IO) {
-                WorkshopManager.cleanupDisabledWorkshopArtifactsForApp(context, gameId)
+                workshopManager.cleanupDisabledWorkshopArtifactsForApp(gameId)
             }
         }
 

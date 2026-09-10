@@ -3,6 +3,7 @@ package app.gamenative.ui.util
 import android.content.Context
 import android.net.Uri
 import app.gamenative.R
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.ui.screen.library.appscreen.BaseAppScreen
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.BestConfigService
@@ -91,10 +92,10 @@ object ContainerConfigTransfer {
                 }
 
             val matchType = "exact_gpu_match"
+            val bestConfigService = context.appUtilsEntryPoint().bestConfigService()
 
             // 1) Parse config into a validated map of fields to apply
-            val parsedResult = BestConfigService.parseConfigResult(
-                context = context,
+            val parsedResult = bestConfigService.parseConfigResult(
                 configJson = configJson,
                 matchType = matchType,
                 applyKnownConfig = true,
@@ -108,16 +109,16 @@ object ContainerConfigTransfer {
                         // "apply anyway" — re-parse with defaults, install manifest entries, apply
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
-                                val forced = BestConfigService.parseConfigToContainerData(
-                                    context, configJson, matchType, true, forceApply = true,
+                                val forced = bestConfigService.parseConfigToContainerData(
+                                    configJson, matchType, true, forceApply = true,
                                 )
                                 if (forced.isNullOrEmpty()) {
                                     SnackbarManager.show(context.getString(R.string.best_config_known_config_invalid))
                                     return@launch
                                 }
 
-                                val requests = BestConfigService.resolveMissingManifestInstallRequests(
-                                    context, configJson, matchType,
+                                val requests = bestConfigService.resolveMissingManifestInstallRequests(
+                                    configJson, matchType,
                                 )
                                 for (request in requests) {
                                     val result = ManifestInstaller.installManifestEntry(
@@ -154,8 +155,7 @@ object ContainerConfigTransfer {
             }
 
             // 2) Install any missing manifest components (wine/proton, dxvk, drivers, etc.)
-            val missingRequests = BestConfigService.resolveMissingManifestInstallRequests(
-                context = context,
+            val missingRequests = bestConfigService.resolveMissingManifestInstallRequests(
                 configJson = configJson,
                 matchType = matchType,
             )

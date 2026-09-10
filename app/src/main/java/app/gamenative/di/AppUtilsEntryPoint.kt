@@ -3,6 +3,7 @@ package app.gamenative.di
 import android.content.Context
 import app.gamenative.data.FavoritesManager
 import app.gamenative.sync.FrontendSyncManager
+import app.gamenative.utils.BestConfigService
 import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.DeviceGameStatsCache
 import app.gamenative.utils.GameCompatibilityCache
@@ -10,6 +11,7 @@ import app.gamenative.utils.GpuGameStatsCache
 import app.gamenative.utils.HltbCache
 import app.gamenative.utils.HltbService
 import app.gamenative.utils.SteamGridDB
+import app.gamenative.workshop.WorkshopManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -31,6 +33,12 @@ interface AppUtilsEntryPoint {
     fun favoritesManager(): FavoritesManager
     fun frontendSyncManager(): FrontendSyncManager
     fun customGameScanner(): CustomGameScanner
+    fun steamManager(): app.gamenative.service.SteamManager
+    fun epicManager(): app.gamenative.service.epic.EpicManager
+    fun gogManager(): app.gamenative.service.gog.GOGManager
+    fun amazonManager(): app.gamenative.service.amazon.AmazonManager
+    fun bestConfigService(): BestConfigService
+    fun workshopManager(): WorkshopManager
 
     companion object {
         /**

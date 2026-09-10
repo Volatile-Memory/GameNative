@@ -30,7 +30,7 @@ class SdCardDetectionTest {
         createGameDir(sdcard, "MyGame", complete = true)
 
         val paths = listOf(internal.absolutePath, sdcard.absolutePath)
-        val result = SteamService.resolveExistingAppDir(paths, listOf("MyGame"))
+        val result = SteamManager.SteamDirResolver.resolveExistingAppDir(paths, listOf("MyGame"))
 
         assertEquals(File(sdcard, "MyGame").absolutePath, result)
     }
@@ -44,7 +44,7 @@ class SdCardDetectionTest {
         createGameDir(sdcard, "MyGame", complete = false)
 
         val paths = listOf(internal.absolutePath, sdcard.absolutePath)
-        val result = SteamService.resolveExistingAppDir(paths, listOf("MyGame"))
+        val result = SteamManager.SteamDirResolver.resolveExistingAppDir(paths, listOf("MyGame"))
 
         assertEquals(File(internal, "MyGame").absolutePath, result)
     }
@@ -53,7 +53,7 @@ class SdCardDetectionTest {
     fun `returns null when no directory exists`() {
         val internal = tmpDir.newFolder("internal", "Steam", "steamapps", "common")
         val paths = listOf(internal.absolutePath)
-        val result = SteamService.resolveExistingAppDir(paths, listOf("MyGame"))
+        val result = SteamManager.SteamDirResolver.resolveExistingAppDir(paths, listOf("MyGame"))
 
         assertNull(result)
     }
@@ -62,7 +62,7 @@ class SdCardDetectionTest {
     fun `empty name is skipped — never returns install root`() {
         val internal = tmpDir.newFolder("internal", "Steam", "steamapps", "common")
         val paths = listOf(internal.absolutePath)
-        val result = SteamService.resolveExistingAppDir(paths, listOf(""))
+        val result = SteamManager.SteamDirResolver.resolveExistingAppDir(paths, listOf(""))
 
         assertNull(result)
     }

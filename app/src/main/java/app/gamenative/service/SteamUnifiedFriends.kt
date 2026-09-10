@@ -7,15 +7,14 @@ import `in`.dragonbra.javasteam.rpc.service.Player
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import timber.log.Timber
 
-// TODO this class has a single method, it could be merged into SteamService.kt
-class SteamUnifiedFriends(service: SteamService) : AutoCloseable {
+class SteamUnifiedFriends(manager: SteamManager) : AutoCloseable {
 
     private var unifiedMessages: SteamUnifiedMessages? = null
 
     private var player: Player? = null
 
     init {
-        unifiedMessages = service.steamClient!!.getHandler<SteamUnifiedMessages>()
+        unifiedMessages = manager.steamClient!!.getHandler<SteamUnifiedMessages>()
 
         player = unifiedMessages!!.createService(Player::class.java)
     }
