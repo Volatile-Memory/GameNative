@@ -157,6 +157,7 @@ class SteamManager @Inject constructor(
     internal val steamUnlockedBranchDao: SteamUnlockedBranchDao,
     internal val notificationHelper: NotificationHelper,
     internal val workshopManagerProvider: Provider<app.gamenative.workshop.WorkshopManager>,
+    internal val gameSessionManagerProvider: Provider<app.gamenative.core.runtime.GameSessionManager>,
 ) : IChallengeUrlChanged {
 
     companion object {
@@ -1517,7 +1518,7 @@ class SteamManager @Inject constructor(
             cancelLongLivedSteamJobs()
             scope.launch { stop() }
         } else if (callback.result == EResult.LoggedInElsewhere) {
-            if (PluviaApp.xEnvironment != null) {
+            if (gameSessionManagerProvider.get().isSessionRunning) {
                 if (!_isHandlingConflict.getAndSet(true)) {
                     _isPlayingBlocked.value = true
                     PluviaApp.events.emit(SteamEvent.PlayingBlocked(remoteAppName = null))

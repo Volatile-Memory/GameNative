@@ -54,6 +54,7 @@ import app.gamenative.Constants
 import app.gamenative.MainActivity
 import app.gamenative.NetworkMonitor
 import app.gamenative.PluviaApp
+import app.gamenative.di.appUtilsEntryPoint
 import app.gamenative.preferences.PreferencesEntryPoint
 import app.gamenative.preferences.preferencesEntryPoint
 import app.gamenative.R
@@ -307,6 +308,7 @@ fun PluviaMain(
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val generalPreferences = remember(context) { context.preferencesEntryPoint().generalPreferences() }
+    val gameSessionManager = remember(context) { context.appUtilsEntryPoint().gameSessionManager() }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -577,7 +579,7 @@ fun PluviaMain(
                             val pending = MainActivity.peekPendingLaunchRequest()
                             if (pending != null && !needsDeferLaunch(context, pending.appId)) {
                                 processPendingLaunch("user is now logged in")
-                            } else if (pending == null && PluviaApp.xEnvironment == null) {
+                            } else if (pending == null && !gameSessionManager.isSessionRunning) {
                                 val currentRoute = navController.currentDestination?.route
                                 val targetRoute = viewModel.getPersistedRoute() ?: PluviaScreen.Home.route
                                 if (currentRoute == PluviaScreen.LoginUser.route) {
@@ -1384,7 +1386,7 @@ fun PluviaMain(
                     LaunchedEffect(Unit) {
                         val shouldShowDialogs = !isOffline || !SteamUtils.hasStoredCredentials()
 
-                        if (shouldShowDialogs && !state.annoyingDialogShown && PluviaApp.xEnvironment == null && !SteamService.keepAlive && !MainActivity.wasLaunchedViaExternalIntent) {
+                        if (shouldShowDialogs && !state.annoyingDialogShown && !gameSessionManager.isSessionRunning && !SteamService.keepAlive && !MainActivity.wasLaunchedViaExternalIntent) {
                             val currentUpdateInfo = updateInfo
                             if (currentUpdateInfo != null) {
                                 viewModel.setAnnoyingDialogShown(true)

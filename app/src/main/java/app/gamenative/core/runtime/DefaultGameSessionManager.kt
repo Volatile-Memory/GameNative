@@ -51,13 +51,17 @@ class DefaultGameSessionManager @Inject constructor(
                 .setSessionInfo(info)
                 .build()
 
-            val sessionScope = dagger.hilt.EntryPoints.get(component, GameSessionEntryPoint::class.java).sessionScope()
+            val entryPoint = dagger.hilt.EntryPoints.get(component, GameSessionEntryPoint::class.java)
+            val sessionScope = entryPoint.sessionScope()
+            val runtime = entryPoint.gameSessionRuntime()
+            runtime.startSession(info)
 
             var sessionRef: ActiveGameSession? = null
             val session = ActiveGameSession(
                 info = info,
                 component = component,
                 sessionScope = sessionScope,
+                runtime = runtime,
                 onTeardown = {
                     sessionRef?.let { _activeSession.compareAndSet(it, null) }
                     onTeardown()
@@ -68,6 +72,65 @@ class DefaultGameSessionManager @Inject constructor(
             _activeSession.value = session
             Timber.i("Started new game session: ${info.title} (${info.appId}, source=${info.source})")
             session
+        }
+    }
+
+    @Synchronized
+    override fun getOrCreateRuntime(): GameSessionRuntime {
+        _activeSession.value?.runtime?.let { return it }
+
+        val activeGame = app.gamenative.service.ActiveGameRegistry.get()
+        val info = if (activeGame != null) {
+            ActiveGameSessionInfo(
+                appId = activeGame.appId.toString(),
+                title = "Steam Game ${activeGame.appId}",
+                source = app.gamenative.data.GameSource.STEAM,
+                containerId = activeGame.appId.toString(),
+            )
+        } else {
+            ActiveGameSessionInfo(
+                appId = "active_game",
+                title = "Active Game",
+                source = app.gamenative.data.GameSource.CUSTOM_GAME,
+                containerId = "0",
+            )
+        }
+
+        val component = componentBuilderProvider.get()
+            .setSessionInfo(info)
+            .build()
+
+        val entryPoint = dagger.hilt.EntryPoints.get(component, GameSessionEntryPoint::class.java)
+        val sessionScope = entryPoint.sessionScope()
+        val runtime = entryPoint.gameSessionRuntime()
+        runtime.startSession(info)
+
+        var sessionRef: ActiveGameSession? = null
+        val session = ActiveGameSession(
+            info = info,
+            component = component,
+            sessionScope = sessionScope,
+            runtime = runtime,
+            onTeardown = {
+                sessionRef?.let { _activeSession.compareAndSet(it, null) }
+            },
+        )
+        sessionRef = session
+        _activeSession.value = session
+        Timber.i("Created runtime session for ${info.title} (${info.appId})")
+        return runtime
+    }
+
+    fun endSessionSync() {
+        val current = _activeSession.value
+        if (current != null) {
+            Timber.i("Ending active game session synchronously: ${current.info.title} (${current.info.appId})")
+            _activeSession.value = null
+            appScope.launch {
+                sessionMutex.withLock {
+                    current.terminate()
+                }
+            }
         }
     }
 

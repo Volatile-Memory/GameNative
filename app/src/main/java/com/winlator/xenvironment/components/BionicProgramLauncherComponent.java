@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.gamenative.BuildConfig;
-import app.gamenative.PluviaApp;
 import app.gamenative.events.AndroidEvent;
 import app.gamenative.preferences.PreferencesEntryPoint;
 import app.gamenative.service.SteamService;

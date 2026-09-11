@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.gamenative.Constants
-import app.gamenative.PluviaApp
 import app.gamenative.core.coroutines.ApplicationScope
 import app.gamenative.di.PluviaDataStore
 import com.winlator.box86_64.Box86_64Preset
@@ -25,6 +24,7 @@ import javax.inject.Singleton
 class DefaultContainerPreferences @Inject constructor(
     @PluviaDataStore private val dataStore: DataStore<Preferences>,
     @ApplicationScope private val scope: CoroutineScope,
+    private val screenSizeResolver: app.gamenative.utils.ScreenSizeResolver,
 ) : ContainerPreferences {
 
     private companion object {
@@ -96,7 +96,7 @@ class DefaultContainerPreferences @Inject constructor(
     }
 
     override var screenSize: String
-        get() = getPref(SCREEN_SIZE, PluviaApp.getDefaultScreenSize())
+        get() = getPref(SCREEN_SIZE, screenSizeResolver.getDefaultScreenSize())
         set(value) = setPref(SCREEN_SIZE, value)
 
     override var envVars: String

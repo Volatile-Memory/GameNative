@@ -34,8 +34,8 @@
 | 2 | M2: User Library Managers (Group 3) | `FavoritesManager.kt`, `FrontendSyncManager.kt`, `CustomGameScanner.kt`, callers & tests | M1 | DONE |
 | 3 | M3: Storefront Services & Managers (Group 4) | `SteamService`/`SteamManager`, `EpicService`/`EpicManager`, `GOGService`/`GOGManager`, `AmazonService`/`AmazonManager`, callers & tests | M2 | DONE |
 | 4 | M4: Advanced Subsystems (Group 5) | `BestConfigService.kt`, `WorkshopManager.kt`, callers & tests | M3 | DONE |
-| 5 | M5: PluviaApp & GameSession Runtime (Group 6) | `PluviaApp.kt`, `GameSessionRuntime.kt`, `GameSessionComponent.kt`, `GameSessionManager.kt`, callers & tests | M4 | IN_PROGRESS |
-| 6 | M6: Acceptance Verification & Forensics | Full Gradle compile, unit test suite, Reviewers, Challengers, and Forensic Auditor verification | M1, M2, M3, M4, M5 | PLANNED |
+| 5 | M5: PluviaApp & GameSession Runtime (Group 6) | `PluviaApp.kt`, `GameSessionRuntime.kt`, `GameSessionComponent.kt`, `GameSessionManager.kt`, callers & tests | M4 | DONE |
+| 6 | M6: Acceptance Verification & Forensics | Full Gradle compile, unit test suite, Reviewers, Challengers, and Forensic Auditor verification | M1, M2, M3, M4, M5 | IN_PROGRESS |
 
 ## Interface Contracts
 ### Group 1 & 2 ↔ UI & ViewModels

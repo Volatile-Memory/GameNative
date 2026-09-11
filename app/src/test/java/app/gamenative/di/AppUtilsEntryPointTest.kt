@@ -44,6 +44,9 @@ class AppUtilsEntryPointTest {
         val amazonManager = mockk<AmazonManager>(relaxed = true)
         val bestConfigService = mockk<BestConfigService>(relaxed = true)
         val workshopManager = mockk<WorkshopManager>(relaxed = true)
+        val gameSessionManager = mockk<app.gamenative.core.runtime.GameSessionManager>(relaxed = true)
+        val screenSizeResolver = mockk<app.gamenative.utils.ScreenSizeResolver>(relaxed = true)
+        val eventDispatcher = mockk<app.gamenative.events.EventDispatcher>(relaxed = true)
 
         val mockEntryPoint = object : AppUtilsEntryPoint {
             override fun hltbService(): HltbService = hltbService
@@ -61,6 +64,9 @@ class AppUtilsEntryPointTest {
             override fun amazonManager(): AmazonManager = amazonManager
             override fun bestConfigService(): BestConfigService = bestConfigService
             override fun workshopManager(): WorkshopManager = workshopManager
+            override fun gameSessionManager(): app.gamenative.core.runtime.GameSessionManager = gameSessionManager
+            override fun screenSizeResolver(): app.gamenative.utils.ScreenSizeResolver = screenSizeResolver
+            override fun eventDispatcher(): app.gamenative.events.EventDispatcher = eventDispatcher
         }
 
         assertNotNull(mockEntryPoint.hltbService())
@@ -78,5 +84,8 @@ class AppUtilsEntryPointTest {
         assertNotNull(mockEntryPoint.amazonManager())
         assertNotNull(mockEntryPoint.bestConfigService())
         assertNotNull(mockEntryPoint.workshopManager())
+        assertNotNull(mockEntryPoint.gameSessionManager())
+        assertNotNull(mockEntryPoint.screenSizeResolver())
+        assertNotNull(mockEntryPoint.eventDispatcher())
     }
 }

@@ -15,4 +15,6 @@ interface GameSessionEntryPoint {
     
     @GameSessionCoroutineScope
     fun sessionScope(): CoroutineScope
+
+    fun gameSessionRuntime(): GameSessionRuntime
 }

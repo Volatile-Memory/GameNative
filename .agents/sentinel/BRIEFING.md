@@ -16,6 +16,10 @@ Coordinate and monitor the refactoring of mid-level object singletons (Groups 4,
 - Orchestrator: 4e0c7245-24ab-4ad8-b0b1-6787f82b4eba (Eradicate Mid-Level Singletons Group 5 - orchestrator_12)
 - Progress Cron Task: a1b34f2a-9daa-419d-8499-d7b3eb5a4bce/task-20
 - Liveness Cron Task: a1b34f2a-9daa-419d-8499-d7b3eb5a4bce/task-22
+- Orchestrator: b1717145-df70-4192-b3bb-47d186c14f66 (Eradicate Mid-Level Singletons Groups 5, 6 - orchestrator_13)
+- Orchestrator: 3f0db90d-3a3f-43cd-b9e6-15ddaf061289 (Eradicate Mid-Level Singletons Groups 5, 6 - orchestrator_14)
+- Progress Cron Task: 08914b30-c249-450c-adc7-db1cc1bfc92c/task-58
+- Liveness Cron Task: 08914b30-c249-450c-adc7-db1cc1bfc92c/task-60
 - Victory Auditor: [to be spawned on victory claim]
 
 ## 🔒 Key Constraints
@@ -26,14 +30,14 @@ Coordinate and monitor the refactoring of mid-level object singletons (Groups 4,
 - Build Cache Efficiency: use Gradle build cache efficiently (GRADLE_USER_HOME on D:\), do not use --no-build-cache unless strictly required
 
 ## User Context
-- **Last user request**: Eradicate Mid-Level Singletons (Groups 4, 5, 6). Convert SteamService, EpicService, GOGService, AmazonService, BestConfigService, WorkshopManager, PluviaApp.companion. Eradicate escape hatches, refactor call sites, ensure clean build and unit tests.
+- **Last user request**: Eradicate Mid-Level Singletons (Groups 5, 6). Convert BestConfigService, WorkshopManager, PluviaApp.companion. Eradicate escape hatches, refactor call sites, ensure clean build and unit tests.
 - **Pending clarifications**: none
-- **Delivered results**: Group 4 Storefront Services Complete (Gate Passed); Group 5 Advanced Subsystems Complete (Gate Passed)
+- **Delivered results**: Groups 1, 2, 3, 4 completed in prior runs. Group 5 partially completed. Continuing Group 5 and Group 6.
 
 ## Project Status
 - **Phase**: in progress
 - **Route**: General (teamwork_preview_orchestrator)
-- **Active Orchestrator**: 4e0c7245-24ab-4ad8-b0b1-6787f82b4eba (.agents/orchestrator_12)
+- **Active Orchestrator**: 3f0db90d-3a3f-43cd-b9e6-15ddaf061289 (.agents/orchestrator_14)
 
 ## Victory Audit Status
 - **Triggered**: no
@@ -42,7 +46,5 @@ Coordinate and monitor the refactoring of mid-level object singletons (Groups 4,
 
 ## Artifact Index
 - C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\ORIGINAL_REQUEST.md — Authoritative user request
-- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\orchestrator_10\handoff.md — Generation 10 handoff report
-- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\orchestrator_11\progress.md — Generation 11 progress report
-- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\orchestrator_12\plan.md — Generation 12 execution plan
-- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\orchestrator_12\progress.md — Generation 12 live progress
+- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\orchestrator_14\CONTEXT.md — Generation 14 context
+- C:\Users\VladK\.gemini\antigravity\worktrees\GameNative\refactor_gamenative_dependency_injection\.agents\orchestrator_14\progress.md — Generation 14 live progress (to be updated by orchestrator)

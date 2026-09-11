@@ -58,6 +58,7 @@ import com.winlator.container.Container
 import com.winlator.core.AppUtils
 import com.winlator.renderer.GLRenderer
 import com.winlator.winhandler.WinHandler
+import javax.inject.Inject
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -110,6 +111,17 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
     }
 
     private val viewModel: MainViewModel by viewModels()
+
+    @Inject lateinit var gameSessionManager: app.gamenative.core.runtime.GameSessionManager
+
+    private val currentRuntime: app.gamenative.core.runtime.GameSessionRuntime?
+        get() = gameSessionManager.currentRuntime
+
+    private val xServerView: com.winlator.widget.XServerRendererView?
+        get() = currentRuntime?.xServerView
+
+    private val isOverlayPaused: Boolean
+        get() = currentRuntime?.isOverlayPaused == true
 
     @Volatile
     private var backAction: (() -> Unit)? = null
@@ -248,7 +260,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
         }
         currentAppId = appId
 
-        PluviaApp.isActivityInForeground = true
+        currentRuntime?.isActivityInForeground = true
         AppUtils.keepScreenOn(this)
         loadImmersiveSettings(appId)
 
@@ -291,7 +303,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
                         Timber.i("Immersive: quick menu visibility changed to %b", visible)
                         quickMenuVisible = visible
                         if (visible) {
-                            directRenderBlockedByEffects = (PluviaApp.xServerView?.renderer as? com.winlator.renderer.VulkanRenderer)
+                            directRenderBlockedByEffects = (xServerView?.renderer as? com.winlator.renderer.VulkanRenderer)
                                 ?.isEffectsRequireCompositor()
                         }
                     },
@@ -313,7 +325,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
                         },
                         directRenderBlockedByEffects = directRenderBlockedByEffects,
                         onResetScreenEffects = {
-                            val vulkanRenderer = PluviaApp.xServerView?.renderer as? com.winlator.renderer.VulkanRenderer
+                            val vulkanRenderer = xServerView?.renderer as? com.winlator.renderer.VulkanRenderer
                             vulkanRenderer?.resetScreenEffects()
                             directRenderBlockedByEffects = vulkanRenderer?.isEffectsRequireCompositor()
                             Timber.i("Immersive: screen effects reset from quick menu, blocked=%s", directRenderBlockedByEffects)
@@ -416,37 +428,39 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        PluviaApp.isActivityInForeground = true
-        if (SteamService.keepAlive && PluviaApp.hasValidSuspendPolicyState() && PluviaApp.xEnvironment != null) {
+        val runtime = currentRuntime
+        runtime?.isActivityInForeground = true
+        if (SteamService.keepAlive && runtime?.hasValidSuspendPolicyState() == true && runtime.xEnvironment != null) {
             when {
-                PluviaApp.isNeverSuspendMode() -> Unit
-                PluviaApp.isOverlayPaused && PluviaApp.isManualSuspendMode() -> Unit
-                else -> PluviaApp.xEnvironment?.onResume()
+                runtime.isNeverSuspendMode() -> Unit
+                runtime.isOverlayPaused && runtime.isManualSuspendMode() -> Unit
+                else -> runtime.onResume()
             }
         }
         startXrSessionIfNeeded()
     }
 
     override fun onPause() {
-        PluviaApp.isActivityInForeground = false
+        val runtime = currentRuntime
+        runtime?.isActivityInForeground = false
         Timber.i(
             "Immersive: onPause, isFinishing=%b isChangingConfigurations=%b",
             isFinishing,
             isChangingConfigurations,
         )
         if (isFinishing && !isChangingConfigurations) {
-            PluviaApp.shutdownEnvironment()
-        } else if (SteamService.keepAlive && PluviaApp.hasValidSuspendPolicyState() &&
-            PluviaApp.xEnvironment != null && !PluviaApp.isNeverSuspendMode()
+            lifecycleScope.launch { gameSessionManager.endSession() }
+        } else if (SteamService.keepAlive && runtime?.hasValidSuspendPolicyState() == true &&
+            runtime.xEnvironment != null && !runtime.isNeverSuspendMode()
         ) {
-            PluviaApp.xEnvironment?.onPause()
+            runtime.onPause()
         }
         super.onPause()
     }
 
     override fun onDestroy() {
         stopXrSession()
-        PluviaApp.shutdownEnvironment()
+        lifecycleScope.launch { gameSessionManager.endSession() }
         super.onDestroy()
     }
 
@@ -496,7 +510,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
             val flags = BooleanArray(3)
             var lastFedGamepad = false
             while (pollingActive.get()) {
-                val winHandler = PluviaApp.xServerView?.getxServer()?.winHandler
+                val winHandler = xServerView?.getxServer()?.winHandler
                 if (winHandler != null) {
                     if (winHandler !== cachedWinHandler) {
                         cachedWinHandler = winHandler
@@ -521,8 +535,8 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
                             pointerCursorRightValid = false
                         }
                     }
-                    val inMenuMode = quickMenuVisible || PluviaApp.isOverlayPaused
-                    overlayPausedUi = PluviaApp.isOverlayPaused
+                    val inMenuMode = quickMenuVisible || isOverlayPaused
+                    overlayPausedUi = isOverlayPaused
                     if (wasInMenuNavigationMode && !inMenuMode) {
                         buttonSuppressMaskUntilRelease = buttons[0]
                     }
@@ -543,7 +557,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
                         Timber.i(
                             "Immersive: quick-menu chord fired, quickMenuToggle registered=%b buttons=0x%03x " +
                                 "quickMenuVisible=%b isOverlayPaused=%b xrPointerModeActive=%b",
-                            quickMenuToggle != null, buttons[0], quickMenuVisible, PluviaApp.isOverlayPaused, xrPointerModeActive,
+                            quickMenuToggle != null, buttons[0], quickMenuVisible, isOverlayPaused, xrPointerModeActive,
                         )
                         runOnUiThread { quickMenuToggle?.invoke() }
                     }
@@ -928,7 +942,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
             direction != lastMenuDpadKeyCode -> {
                 Timber.i(
                     "Immersive: menu dpad direction=%d leftX=%.2f leftY=%.2f quickMenuVisible=%b isOverlayPaused=%b",
-                    direction, leftX, leftY, quickMenuVisible, PluviaApp.isOverlayPaused,
+                    direction, leftX, leftY, quickMenuVisible, isOverlayPaused,
                 )
                 triggerMenuDirection(direction)
                 lastMenuDpadKeyCode = direction
@@ -1047,7 +1061,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
      * loop rather than once at session start, since the game's XServerView/renderer isn't created
      * yet at that point for a typical launch. */
     private fun setupDirectRenderBridgeIfSupported() {
-        val actualRenderer = PluviaApp.xServerView?.renderer
+        val actualRenderer = xServerView?.renderer
         val glRenderer = actualRenderer as? GLRenderer
 
         if (glRenderer != null && glRenderer.isEffectsRequireCompositor()) {
@@ -1117,12 +1131,12 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
     private fun teardownDirectRenderBridge() {
         bridgedRenderer = null
         directVulkanBridge = null
-        (PluviaApp.xServerView?.renderer as? com.winlator.renderer.VulkanRenderer)?.setVulkanXrFrameBridge(null)
+        (xServerView?.renderer as? com.winlator.renderer.VulkanRenderer)?.setVulkanXrFrameBridge(null)
         val bridge = directGLBridge
         if (bridge != null) {
             directGLBridge = null
-            (PluviaApp.xServerView?.renderer as? GLRenderer)?.setXrFrameBridge(null)
-            PluviaApp.xServerView?.queueEvent { bridge.release() }
+            (xServerView?.renderer as? GLRenderer)?.setXrFrameBridge(null)
+            xServerView?.queueEvent { bridge.release() }
         }
         directRenderActive = false
     }
@@ -1133,14 +1147,14 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
 
         setupDirectRenderBridgeIfSupported()
 
-        val surfaceView = PluviaApp.xServerView as? SurfaceView
+        val surfaceView = xServerView as? SurfaceView
         val width = surfaceView?.width ?: 0
         val height = surfaceView?.height ?: 0
 
         val glBridge = directGLBridge
         if (glBridge != null) {
             if (width > 0 && height > 0) {
-                PluviaApp.xServerView?.queueEvent { glBridge.ensureAllocated(width, height) }
+                xServerView?.queueEvent { glBridge.ensureAllocated(width, height) }
             }
             if (directRenderActive) {
                 handler.postDelayed({ scheduleNextCapture() }, CAPTURE_RETRY_DELAY_MS)
@@ -1262,7 +1276,7 @@ class ImmersiveXrActivity : androidx.activity.ComponentActivity() {
                 return@runOnUiThread
             }
 
-            val surfaceView = PluviaApp.xServerView as? SurfaceView
+            val surfaceView = xServerView as? SurfaceView
             val previousAlpha = surfaceView?.alpha ?: 1f
 
             try {

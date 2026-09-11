@@ -39,6 +39,9 @@ interface AppUtilsEntryPoint {
     fun amazonManager(): app.gamenative.service.amazon.AmazonManager
     fun bestConfigService(): BestConfigService
     fun workshopManager(): WorkshopManager
+    fun gameSessionManager(): app.gamenative.core.runtime.GameSessionManager
+    fun screenSizeResolver(): app.gamenative.utils.ScreenSizeResolver
+    fun eventDispatcher(): app.gamenative.events.EventDispatcher
 
     companion object {
         /**

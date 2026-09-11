@@ -28,11 +28,17 @@ class FakeGameSessionManager : GameSessionManager {
 
         val dummyComponent = object : GameSessionComponent {}
         val dummyScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined)
+        val dummyRuntime = app.gamenative.core.runtime.GameSessionRuntime(
+            sessionInfo = info,
+            steamManagerProvider = { io.mockk.mockk(relaxed = true) },
+            sessionScope = dummyScope,
+        )
         var sessionRef: ActiveGameSession? = null
         val session = ActiveGameSession(
             info = info,
             component = dummyComponent,
             sessionScope = dummyScope,
+            runtime = dummyRuntime,
             onTeardown = {
                 sessionRef?.let { _activeSession.compareAndSet(it, null) }
                 onTeardown()
@@ -41,6 +47,36 @@ class FakeGameSessionManager : GameSessionManager {
         sessionRef = session
         _activeSession.value = session
         return session
+    }
+
+    override fun getOrCreateRuntime(): app.gamenative.core.runtime.GameSessionRuntime {
+        _activeSession.value?.runtime?.let { return it }
+        val dummyComponent = object : GameSessionComponent {}
+        val dummyScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined)
+        val info = ActiveGameSessionInfo(
+            appId = "dummy",
+            title = "Dummy",
+            source = app.gamenative.data.GameSource.CUSTOM_GAME,
+            containerId = "0",
+        )
+        val dummyRuntime = app.gamenative.core.runtime.GameSessionRuntime(
+            sessionInfo = info,
+            steamManagerProvider = { io.mockk.mockk(relaxed = true) },
+            sessionScope = dummyScope,
+        )
+        var sessionRef: ActiveGameSession? = null
+        val session = ActiveGameSession(
+            info = info,
+            component = dummyComponent,
+            sessionScope = dummyScope,
+            runtime = dummyRuntime,
+            onTeardown = {
+                sessionRef?.let { _activeSession.compareAndSet(it, null) }
+            },
+        )
+        sessionRef = session
+        _activeSession.value = session
+        return dummyRuntime
     }
 
     override suspend fun endSession() {

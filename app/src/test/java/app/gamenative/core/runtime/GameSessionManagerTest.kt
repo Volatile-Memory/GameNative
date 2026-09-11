@@ -58,4 +58,19 @@ class GameSessionManagerTest {
         assertFalse(session2.isClosed)
         assertEquals(info2, manager.getActiveSessionInfo())
     }
+
+    @Test
+    fun fakeGameSessionManager_currentRuntimeAndGetOrCreateRuntime() = runBlocking {
+        val manager = FakeGameSessionManager()
+        assertNull(manager.currentRuntime)
+
+        val runtime = manager.getOrCreateRuntime()
+        assertNotNull(runtime)
+        assertTrue(manager.isSessionRunning)
+        assertEquals(runtime, manager.currentRuntime)
+
+        manager.endSession()
+        assertNull(manager.currentRuntime)
+        assertFalse(manager.isSessionRunning)
+    }
 }

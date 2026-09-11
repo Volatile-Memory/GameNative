@@ -13,6 +13,13 @@ interface GameSessionManager {
     val isSessionRunning: Boolean
         get() = activeSession.value != null
 
+    /** Current active session runtime, or null if no session is running. */
+    val currentRuntime: GameSessionRuntime?
+        get() = activeSession.value?.runtime
+
+    /** Returns current runtime or creates a new active session if none is running. */
+    fun getOrCreateRuntime(): GameSessionRuntime
+
     /** Starts a new game session, ending any existing active session first. */
     suspend fun startSession(info: ActiveGameSessionInfo, onTeardown: suspend () -> Unit = {}): ActiveGameSession
 

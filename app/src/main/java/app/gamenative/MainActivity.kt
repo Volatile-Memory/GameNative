@@ -72,6 +72,7 @@ import timber.log.Timber
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var generalPreferences: GeneralPreferences
+    @Inject lateinit var gameSessionManager: app.gamenative.core.runtime.GameSessionManager
 
     companion object {
         private var totalIndex = 0
@@ -206,9 +207,9 @@ class MainActivity : ComponentActivity() {
         }
 
         // stale keepAlive from a prior crash/swipe — no container is actually running
-        if (SteamService.keepAlive && PluviaApp.xEnvironment == null) {
+        if (SteamService.keepAlive && !gameSessionManager.isSessionRunning) {
             Timber.w("onCreate: clearing stale keepAlive — no container running")
-            PluviaApp.shutdownEnvironment()
+            lifecycleScope.launch { gameSessionManager.endSession() }
         }
 
         // Apply immersive mode based on user preference
@@ -380,7 +381,7 @@ class MainActivity : ComponentActivity() {
             // force-clear so the app isn't stuck on next launch
             if (SteamService.keepAlive) {
                 Timber.w("onDestroy: keepAlive still set after ActivityDestroyed — forcing cleanup")
-                PluviaApp.shutdownEnvironment()
+                lifecycleScope.launch { gameSessionManager.endSession() }
             }
         }
 
@@ -421,11 +422,12 @@ class MainActivity : ComponentActivity() {
 
     private fun hasReadyGameLifecycleState(action: String): Boolean {
         if (!SteamService.keepAlive) return false
-        if (!PluviaApp.hasValidSuspendPolicyState()) {
+        val runtime = gameSessionManager.currentRuntime
+        if (runtime == null || !runtime.hasValidSuspendPolicyState()) {
             Timber.d("Skipping game %s because suspend policy state is not initialized", action)
             return false
         }
-        if (PluviaApp.xEnvironment == null) {
+        if (runtime.xEnvironment == null) {
             Timber.d("Skipping game %s because xEnvironment is not ready", action)
             return false
         }
@@ -435,7 +437,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         PowerManager.resume()
-        PluviaApp.isActivityInForeground = true
+        gameSessionManager.currentRuntime?.isActivityInForeground = true
 
         lifecycleScope.launch { app.gamenative.launch.LaunchReadiness.refresh() }
         // Re-apply immersive mode to ensure fullscreen persists
@@ -448,17 +450,18 @@ class MainActivity : ComponentActivity() {
 
         // Resume game according to the active suspend policy.
         if (hasReadyGameLifecycleState("resume")) {
+            val runtime = gameSessionManager.currentRuntime
             when {
-                PluviaApp.isNeverSuspendMode() -> {
+                runtime?.isNeverSuspendMode() == true -> {
                     Timber.d("Game resume skipped due to suspend policy=never")
                 }
-                PluviaApp.isOverlayPaused -> {
-                    if (PluviaApp.isManualSuspendMode()) {
+                runtime?.isOverlayPaused == true -> {
+                    if (runtime.isManualSuspendMode()) {
                         Timber.d("Game remains suspended until user presses Resume")
                     }
                 }
                 else -> {
-                    PluviaApp.xEnvironment?.onResume()
+                    runtime?.onResume()
                     Timber.d("Game resumed")
                 }
             }
@@ -484,16 +487,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         PowerManager.pause()
-        PluviaApp.isActivityInForeground = false
+        val runtime = gameSessionManager.currentRuntime
+        runtime?.isActivityInForeground = false
         if (hasReadyGameLifecycleState("pause")) {
             when {
-                PluviaApp.isNeverSuspendMode() -> {
+                runtime?.isNeverSuspendMode() == true -> {
                     Timber.d("Game pause skipped due to suspend policy=never")
                 }
                 else -> {
-                    PluviaApp.xEnvironment?.onPause()
-                    if (PluviaApp.isManualSuspendMode()) {
-                        PluviaApp.isOverlayPaused = true
+                    runtime?.onPause()
+                    if (runtime?.isManualSuspendMode() == true) {
+                        runtime.isOverlayPaused = true
                         Timber.d("Game paused due to app backgrounded (manual resume required)")
                     } else {
                         Timber.d("Game paused due to app backgrounded")

@@ -1,12 +1,15 @@
 package app.gamenative.events
 
+import timber.log.Timber
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.reflect.KClass
 
 // written with the help of Claude 3.5
 sealed interface Event<T>
 
 class EventDispatcher {
-    val listeners = mutableMapOf<KClass<out Event<*>>, MutableList<Pair<String, EventListener<Event<*>, *>>>>()
+    val listeners = ConcurrentHashMap<KClass<out Event<*>>, CopyOnWriteArrayList<Pair<String, EventListener<Event<*>, *>>>>()
 
     open class EventListener<E : Event<T>, T>(
         val listener: (E) -> T,
@@ -35,7 +38,7 @@ class EventDispatcher {
             }, once),
         )
         // Log.d("EventDispatcher", "Putting $typedListener in $eventClass")
-        listeners.getOrPut(eventClass) { mutableListOf() }.add(typedListener as Pair<String, EventListener<Event<*>, *>>)
+        listeners.getOrPut(eventClass) { CopyOnWriteArrayList() }.add(typedListener as Pair<String, EventListener<Event<*>, *>>)
     }
 
     inline fun <reified E : Event<T>, T> off(noinline listener: (E) -> T) {
@@ -47,13 +50,9 @@ class EventDispatcher {
     }
 
     inline fun <reified E : Event<*>> clearAllListenersOf() {
-        val currentKeys = listeners.keys.toList()
-        for (key in currentKeys) {
-            if (key is E) {
-                listeners.remove(key)
-            }
-        }
+        listeners.remove(E::class)
     }
+
     fun clearAllListeners() {
         listeners.clear()
     }
@@ -62,13 +61,21 @@ class EventDispatcher {
         val eventClass = E::class
         // Log.d("EventDispatcher", "Emitting $eventClass")
         return listeners[eventClass]?.let { eventListeners ->
-            // Create a new list for iteration to avoid concurrent modification
-            val results = eventListeners.toList().map { eventListener ->
-                eventListener.second.listener(event) as T
-            }.toTypedArray()
-            // Remove one-time listeners after execution
+            val snapshot = eventListeners.toList()
+            // Remove one-time listeners after snapshotting for execution
             eventListeners.removeIf { it.second.once }
-            resultAggregator?.let { it(results) }
+            val results = mutableListOf<T>()
+            for (eventListener in snapshot) {
+                runCatching {
+                    @Suppress("UNCHECKED_CAST")
+                    eventListener.second.listener(event) as T
+                }.onSuccess {
+                    results.add(it)
+                }.onFailure {
+                    Timber.e(it, "EventDispatcher: listener failure for %s", eventClass.simpleName)
+                }
+            }
+            resultAggregator?.let { it(results.toTypedArray()) }
         }
     }
 
@@ -77,11 +84,19 @@ class EventDispatcher {
     fun emitJava(event: Event<*>): Any? {
         val eventClass = event::class
         return listeners[eventClass]?.let { eventListeners ->
-            val results = eventListeners.toList().map { eventListener ->
-                eventListener.second.listener(event)
-            }.toTypedArray()
-            // Remove one-time listeners after execution
+            val snapshot = eventListeners.toList()
+            // Remove one-time listeners after snapshotting for execution
             eventListeners.removeIf { it.second.once }
+            val results = mutableListOf<Any?>()
+            for (eventListener in snapshot) {
+                runCatching {
+                    eventListener.second.listener(event)
+                }.onSuccess {
+                    results.add(it)
+                }.onFailure {
+                    Timber.e(it, "EventDispatcher: emitJava listener failure for %s", eventClass.simpleName)
+                }
+            }
             results.firstOrNull()
         }
     }
